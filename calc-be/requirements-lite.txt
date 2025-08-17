@@ -1,0 +1,30 @@
+# Lightweight version - Use this ONLY if grpcio timeout persists
+# This removes some Google dependencies but keeps core functionality
+
+# Core FastAPI dependencies
+fastapi==0.112.2
+uvicorn[standard]==0.30.6
+gunicorn==21.2.0
+python-dotenv==1.0.1
+requests==2.32.3
+pillow==10.4.0
+
+# Essential Google AI dependencies
+google-generativeai==0.7.2
+google-auth==2.34.0
+
+# Core dependencies
+pydantic==2.8.2
+starlette==0.38.2
+anyio==4.4.0
+click==8.1.7
+h11==0.14.0
+sniffio==1.3.1
+typing_extensions==4.12.2
+idna==3.8
+certifi==2024.8.30
+charset-normalizer==3.3.2
+urllib3==2.2.2
+
+# Note: This version may have reduced functionality
+# Use only as last resort if main requirements.txt fails

@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: ai-calculator-backend
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: |
+      python -m pip install --upgrade pip
+      pip install --no-cache-dir --timeout=300 -r requirements.txt
+    startCommand: python -m gunicorn main:app -c gunicorn_config.py
+    envVars:
+      - key: ENV
+        value: prod
+      - key: PORT
+        fromService:
+          type: web
+          name: ai-calculator-backend
+          property: port
+      - key: SERVER_URL
+        value: "0.0.0.0"
+      - key: GEMINI_API_KEY
+        sync: false  # This will be set manually in Render dashboard
+    healthCheckPath: /
