@@ -106,10 +106,14 @@ export default function Home() {
                 // Update variables if any assignments were made
                 data.forEach((result) => {
                     if (result.assign === true) {
-                        setDictOfVars(prev => ({
-                            ...prev,
-                            [result.expr]: result.result
-                        }));
+                        // Only store string or number values in dictOfVars
+                        if (typeof result.result === 'string' || typeof result.result === 'number') {
+                            const validResult = result.result as string | number;
+                            setDictOfVars(prev => ({
+                                ...prev,
+                                [result.expr]: validResult
+                            }));
+                        }
                     }
                 });
             } else {
