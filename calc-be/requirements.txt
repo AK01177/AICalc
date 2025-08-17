@@ -8,14 +8,13 @@ pillow==10.4.0
 
 # Google AI dependencies - optimized versions
 google-generativeai==0.7.2
-grpcio>=1.60.0,<1.67.0  # Use range instead of exact version
+grpcio>=1.60.0,<1.67.0
 grpcio-status>=1.60.0,<1.63.0
-google-ai-generativelanguage==0.6.6
 google-api-core[grpc]==2.19.2
 google-auth==2.34.0
-googleapis-common-protos==1.65.0
+googleapis-common-protos==1.63.0
 proto-plus==1.24.0
-protobuf==4.25.4
+protobuf==4.25.3
 
 # Other dependencies
 pydantic==2.8.2
