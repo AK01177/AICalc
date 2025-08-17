@@ -7,7 +7,7 @@ services:
     buildCommand: |
       python -m pip install --upgrade pip
       pip install --no-cache-dir --timeout=300 -r requirements.txt
-    startCommand: python -m gunicorn main:app -c gunicorn_config.py
+    startCommand: python main.py
     envVars:
       - key: ENV
         value: prod
@@ -21,3 +21,4 @@ services:
       - key: GEMINI_API_KEY
         sync: false  # This will be set manually in Render dashboard
     healthCheckPath: /
+
