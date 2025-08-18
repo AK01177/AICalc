@@ -28,6 +28,7 @@ export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [color, setColor] = useState('rgb(255, 255, 255)');
+    const colorRef = useRef<string>('rgb(255, 255, 255)');
     const [dictOfVars, setDictOfVars] = useState<Record<string, number | string>>({});
     const [results, setResults] = useState<Response[]>([]);
     const [loading, setLoading] = useState(false);
@@ -53,46 +54,73 @@ export default function Home() {
         };
     }, [isDrawing]);
 
-    // Initialize canvas with proper sizing and context
+    const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+
+    // Initialize canvas once with proper DPR scaling and context
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                // Set canvas size to match display size
-                const rect = canvas.getBoundingClientRect();
-                canvas.width = rect.width;
-                canvas.height = rect.height;
-                
-                // Set drawing context properties
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                
-                // Initialize with black background
-                ctx.fillStyle = 'black';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
+        if (!canvas) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+        canvas.style.width = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = colorRef.current;
+
+        // Initialize with black background
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, rect.width, rect.height);
+
+        ctxRef.current = ctx;
+    }, []);
+
+    // Keep stroke color in sync without reinitializing the canvas
+    useEffect(() => {
+        colorRef.current = color;
+        if (ctxRef.current) {
+            ctxRef.current.strokeStyle = color;
         }
     }, [color]);
 
-    // Handle window resize and orientation change for mobile
+    // Handle window resize and orientation change for mobile with DPR
     useEffect(() => {
         const handleResize = () => {
             const canvas = canvasRef.current;
             if (canvas) {
-                const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const rect = canvas.getBoundingClientRect();
-                canvas.width = rect.width;
-                canvas.height = rect.height;
-                
-                // Redraw black background
-                ctx.fillStyle = 'black';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                const ctx = ctxRef.current || canvas.getContext('2d');
+                if (ctx) {
+                    const dpr = window.devicePixelRatio || 1;
+                    const rect = canvas.getBoundingClientRect();
+                    canvas.width = Math.floor(rect.width * dpr);
+                    canvas.height = Math.floor(rect.height * dpr);
+                    canvas.style.width = `${rect.width}px`;
+                    canvas.style.height = `${rect.height}px`;
+
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    ctx.scale(dpr, dpr);
+
+                    // Redraw black background (content not preserved on resize)
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(0, 0, rect.width, rect.height);
+
+                    ctx.lineWidth = 2;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.strokeStyle = colorRef.current;
+
+                    ctxRef.current = ctx;
+                }
             }
-        }
         };
 
         window.addEventListener('resize', handleResize);
@@ -108,79 +136,112 @@ export default function Home() {
     const resetCanvas = useCallback(() => {
         const canvas = canvasRef.current;
         if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'black';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
+            const ctx = ctxRef.current || canvas.getContext('2d');
+            if (!ctx) return;
+            const rect = canvas.getBoundingClientRect();
+            ctx.clearRect(0, 0, rect.width, rect.height);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, rect.width, rect.height);
         }
     }, []);
 
-    // Helper function to get coordinates from both mouse and touch events
-    const getCoordinates = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return { x: 0, y: 0 };
-        
-        const rect = canvas.getBoundingClientRect();
-        
-        if ('touches' in e) {
-            // Touch event
-            const touch = e.touches[0];
-            return {
-                x: touch.clientX - rect.left,
-                y: touch.clientY - rect.top
-            };
-        } else {
-            // Mouse event
-            return {
-                x: e.nativeEvent.offsetX,
-                y: e.nativeEvent.offsetY
-            };
-        }
+    // Pointer-based drawing with RAF and smoothing
+    const isDrawingRef = useRef(false);
+    const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+    const pendingPointsRef = useRef<Array<{ x: number; y: number }>>([]);
+    const rafIdRef = useRef<number | null>(null);
+
+    const scheduleDraw = useCallback(() => {
+        if (rafIdRef.current != null) return;
+        rafIdRef.current = requestAnimationFrame(() => {
+            rafIdRef.current = null;
+            const ctx = ctxRef.current;
+            const canvas = canvasRef.current;
+            if (!ctx || !canvas) return;
+
+            let prev = lastPointRef.current;
+            const points = pendingPointsRef.current;
+            if (points.length === 0) return;
+
+            ctx.strokeStyle = colorRef.current;
+            ctx.beginPath();
+            if (prev) {
+                ctx.moveTo(prev.x, prev.y);
+            } else {
+                ctx.moveTo(points[0].x, points[0].y);
+                prev = points[0];
+            }
+
+            for (let i = 0; i < points.length; i++) {
+                const curr = points[i];
+                const midX = (prev!.x + curr.x) / 2;
+                const midY = (prev!.y + curr.y) / 2;
+                ctx.quadraticCurveTo(prev!.x, prev!.y, midX, midY);
+                prev = curr;
+            }
+            ctx.stroke();
+
+            // Keep last point for next frame
+            lastPointRef.current = prev || lastPointRef.current;
+            // Clear processed points
+            pendingPointsRef.current.length = 0;
+        });
     }, []);
 
-    const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-        // Prevent default touch behavior to avoid scrolling
-        if ('touches' in e) {
-            e.preventDefault();
-        }
-        
+    useEffect(() => {
         const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const coords = getCoordinates(e);
-                ctx.beginPath();
-                ctx.moveTo(coords.x, coords.y);
-                setIsDrawing(true);
-            }
-        }
-    }, [getCoordinates]);
+        if (!canvas) return;
 
-    const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-        if (!isDrawing) return;
-        
-        // Prevent default touch behavior to avoid scrolling
-        if ('touches' in e) {
-            e.preventDefault();
-        }
-        
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const coords = getCoordinates(e);
-                ctx.strokeStyle = color;
-                ctx.lineTo(coords.x, coords.y);
-                ctx.stroke();
-            }
-        }
-    }, [isDrawing, color, getCoordinates]);
+        const getPos = (clientX: number, clientY: number) => {
+            const rect = canvas.getBoundingClientRect();
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        };
 
-    const stopDrawing = useCallback(() => {
-        setIsDrawing(false);
-    }, []);
+        const handlePointerDown = (e: PointerEvent) => {
+            canvas.setPointerCapture?.(e.pointerId);
+            const pos = getPos(e.clientX, e.clientY);
+            isDrawingRef.current = true;
+            setIsDrawing(true);
+            lastPointRef.current = pos;
+            pendingPointsRef.current.push(pos);
+            scheduleDraw();
+        };
+
+        const handlePointerMove = (e: PointerEvent) => {
+            if (!isDrawingRef.current) return;
+            const events = (e as any).getCoalescedEvents?.() as PointerEvent[] | undefined;
+            if (events && events.length > 0) {
+                for (const ce of events) {
+                    const p = getPos(ce.clientX, ce.clientY);
+                    pendingPointsRef.current.push(p);
+                }
+            } else {
+                const p = getPos(e.clientX, e.clientY);
+                pendingPointsRef.current.push(p);
+            }
+            scheduleDraw();
+        };
+
+        const stop = () => {
+            isDrawingRef.current = false;
+            setIsDrawing(false);
+            lastPointRef.current = null;
+        };
+
+        canvas.addEventListener('pointerdown', handlePointerDown);
+        canvas.addEventListener('pointermove', handlePointerMove);
+        canvas.addEventListener('pointerup', stop);
+        canvas.addEventListener('pointercancel', stop);
+        canvas.addEventListener('pointerout', stop);
+
+        return () => {
+            canvas.removeEventListener('pointerdown', handlePointerDown);
+            canvas.removeEventListener('pointermove', handlePointerMove);
+            canvas.removeEventListener('pointerup', stop);
+            canvas.removeEventListener('pointercancel', stop);
+            canvas.removeEventListener('pointerout', stop);
+        };
+    }, [scheduleDraw]);
 
     // API call
     const submitDrawing = useCallback(async () => {
@@ -408,14 +469,6 @@ export default function Home() {
             <canvas
                 ref={canvasRef}
                 className="absolute top-20 left-0 w-full cursor-crosshair touch-none"
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseOut={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-                onTouchCancel={stopDrawing}
                 style={{ height: 'calc(100vh - 100px)' }}
             />
 
