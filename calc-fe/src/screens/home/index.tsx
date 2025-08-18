@@ -26,7 +26,6 @@ interface ApiResponse {
 
 export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-
     const [color, setColor] = useState('rgb(255, 255, 255)');
     const colorRef = useRef<string>('rgb(255, 255, 255)');
     const [dictOfVars, setDictOfVars] = useState<Record<string, number | string>>({});
@@ -40,47 +39,53 @@ export default function Home() {
 
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
     const isDrawingRef = useRef(false);
-    const rectRef = useRef<DOMRect | null>(null);
     const lastPointRef = useRef<{ x: number; y: number } | null>(null);
-    const pathRef = useRef<Path2D | null>(null);
+    const animationFrameRef = useRef<number | null>(null);
+    const pendingPointsRef = useRef<{ x: number; y: number }[]>([]);
 
-    // Prevent scrolling and zooming when drawing on mobile
+    // Disable all touch behaviors that could interfere
     useEffect(() => {
-        const preventDefault = (e: TouchEvent) => {
-            if (e.touches.length > 1) {
-                // Allow multi-touch gestures when not drawing
-                if (!isDrawingRef.current) return;
-            }
-            e.preventDefault();
-        };
-
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        // Prevent touch behaviors on canvas
-        canvas.addEventListener('touchstart', preventDefault, { passive: false });
-        canvas.addEventListener('touchmove', preventDefault, { passive: false });
-        canvas.addEventListener('touchend', preventDefault, { passive: false });
-        
-        // Prevent context menu on long press
-        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-        
+        // Comprehensive touch prevention
+        const preventAll = (e: Event) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        };
+
+        // CSS-based prevention
+        canvas.style.touchAction = 'none';
+        canvas.style.userSelect = 'none';
+        canvas.style.webkitUserSelect = 'none';
+        canvas.style.webkitTouchCallout = 'none';
+        canvas.style.webkitTapHighlightColor = 'transparent';
+
+        // Event-based prevention
+        canvas.addEventListener('touchstart', preventAll, { passive: false });
+        canvas.addEventListener('touchmove', preventAll, { passive: false });
+        canvas.addEventListener('touchend', preventAll, { passive: false });
+        canvas.addEventListener('contextmenu', preventAll);
+        canvas.addEventListener('selectstart', preventAll);
+        canvas.addEventListener('dragstart', preventAll);
+
         return () => {
-            if (canvas) {
-                canvas.removeEventListener('touchstart', preventDefault);
-                canvas.removeEventListener('touchmove', preventDefault);
-                canvas.removeEventListener('touchend', preventDefault);
-                canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
-            }
+            canvas.removeEventListener('touchstart', preventAll);
+            canvas.removeEventListener('touchmove', preventAll);
+            canvas.removeEventListener('touchend', preventAll);
+            canvas.removeEventListener('contextmenu', preventAll);
+            canvas.removeEventListener('selectstart', preventAll);
+            canvas.removeEventListener('dragstart', preventAll);
         };
     }, []);
 
-    // Initialize canvas once with proper DPR scaling and context
+    // Initialize canvas with maximum performance settings
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2); // Limit DPR for performance
         const rect = canvas.getBoundingClientRect();
         canvas.width = Math.floor(rect.width * dpr);
         canvas.height = Math.floor(rect.height * dpr);
@@ -89,18 +94,20 @@ export default function Home() {
 
         const ctx = canvas.getContext('2d', {
             alpha: false,
-            desynchronized: true, // Better performance on mobile
-            willReadFrequently: false
+            desynchronized: true,
+            willReadFrequently: false,
+            powerPreference: 'high-performance'
         });
         
         if (!ctx) return;
         
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
-        ctx.lineWidth = 3; // Slightly thicker for mobile
+        ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.strokeStyle = colorRef.current;
+        ctx.imageSmoothingEnabled = false; // Disable for performance
 
         // Initialize with black background
         ctx.fillStyle = 'black';
@@ -109,7 +116,7 @@ export default function Home() {
         ctxRef.current = ctx;
     }, []);
 
-    // Keep stroke color in sync without reinitializing the canvas
+    // Keep stroke color in sync
     useEffect(() => {
         colorRef.current = color;
         if (ctxRef.current) {
@@ -117,14 +124,14 @@ export default function Home() {
         }
     }, [color]);
 
-    // Handle window resize and orientation change for mobile with DPR
+    // Optimized resize handler
     useEffect(() => {
         const handleResize = () => {
             const canvas = canvasRef.current;
             if (canvas) {
                 const ctx = ctxRef.current || canvas.getContext('2d');
                 if (ctx) {
-                    const dpr = window.devicePixelRatio || 1;
+                    const dpr = Math.min(window.devicePixelRatio || 1, 2);
                     const rect = canvas.getBoundingClientRect();
                     canvas.width = Math.floor(rect.width * dpr);
                     canvas.height = Math.floor(rect.height * dpr);
@@ -134,7 +141,6 @@ export default function Home() {
                     ctx.setTransform(1, 0, 0, 1, 0, 0);
                     ctx.scale(dpr, dpr);
 
-                    // Redraw black background (content not preserved on resize)
                     ctx.fillStyle = 'black';
                     ctx.fillRect(0, 0, rect.width, rect.height);
 
@@ -142,6 +148,7 @@ export default function Home() {
                     ctx.lineCap = 'round';
                     ctx.lineJoin = 'round';
                     ctx.strokeStyle = colorRef.current;
+                    ctx.imageSmoothingEnabled = false;
 
                     ctxRef.current = ctx;
                 }
@@ -164,7 +171,6 @@ export default function Home() {
         };
     }, []);
 
-    // Canvas functions
     const resetCanvas = useCallback(() => {
         const canvas = canvasRef.current;
         if (canvas) {
@@ -177,71 +183,82 @@ export default function Home() {
         }
     }, []);
 
-    // Optimized drawing with smooth curves
-    const smoothLine = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
-        const lastPoint = lastPointRef.current;
+    // Ultra-fast drawing function using requestAnimationFrame batching
+    const batchDraw = useCallback(() => {
+        const ctx = ctxRef.current;
+        const points = pendingPointsRef.current;
         
-        if (!lastPoint) {
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            lastPointRef.current = { x, y };
+        if (!ctx || points.length === 0) {
+            animationFrameRef.current = null;
             return;
         }
 
-        // Calculate distance to determine if we should draw
-        const dx = x - lastPoint.x;
-        const dy = y - lastPoint.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        ctx.strokeStyle = colorRef.current;
 
-        // Skip very small movements to reduce jitter
-        if (distance < 2) return;
+        // Process all pending points in one frame
+        if (points.length === 1) {
+            // First point - start new path
+            const point = points[0];
+            ctx.beginPath();
+            ctx.moveTo(point.x, point.y);
+            lastPointRef.current = point;
+        } else {
+            // Draw lines to all points
+            for (let i = 0; i < points.length; i++) {
+                const point = points[i];
+                const lastPoint = lastPointRef.current;
+                
+                if (lastPoint) {
+                    // Simple line for maximum performance
+                    ctx.lineTo(point.x, point.y);
+                }
+                
+                lastPointRef.current = point;
+            }
+            ctx.stroke();
+        }
 
-        // Use quadratic curves for smoother lines
-        const midX = (lastPoint.x + x) / 2;
-        const midY = (lastPoint.y + y) / 2;
-
-        ctx.quadraticCurveTo(lastPoint.x, lastPoint.y, midX, midY);
-        ctx.stroke();
-
-        lastPointRef.current = { x, y };
+        // Clear processed points
+        pendingPointsRef.current = [];
+        animationFrameRef.current = null;
     }, []);
 
-    // Optimized pointer-based drawing with better mobile support
+    // Queue point for drawing
+    const queuePoint = useCallback((x: number, y: number) => {
+        pendingPointsRef.current.push({ x, y });
+        
+        // Schedule drawing if not already scheduled
+        if (!animationFrameRef.current) {
+            animationFrameRef.current = requestAnimationFrame(batchDraw);
+        }
+    }, [batchDraw]);
+
+    // High-performance drawing event handlers
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        let rect: DOMRect | null = null;
+
         const getPos = (clientX: number, clientY: number) => {
-            const rect = rectRef.current || canvas.getBoundingClientRect();
+            if (!rect) rect = canvas.getBoundingClientRect();
             return { 
-                x: (clientX - rect.left), 
-                y: (clientY - rect.top) 
+                x: clientX - rect.left, 
+                y: clientY - rect.top 
             };
         };
 
         const startDrawing = (x: number, y: number) => {
-            const ctx = ctxRef.current;
-            if (!ctx) return;
-
             isDrawingRef.current = true;
-            rectRef.current = canvas.getBoundingClientRect();
-            
-            ctx.strokeStyle = colorRef.current;
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            
-            lastPointRef.current = { x, y };
-            pathRef.current = new Path2D();
-            pathRef.current.moveTo(x, y);
+            rect = canvas.getBoundingClientRect();
+            lastPointRef.current = null;
+            pendingPointsRef.current = [];
+            queuePoint(x, y);
         };
 
         const continueDrawing = (x: number, y: number) => {
             if (!isDrawingRef.current) return;
-            const ctx = ctxRef.current;
-            if (!ctx) return;
-
-            smoothLine(ctx, x, y);
+            queuePoint(x, y);
         };
 
         const stopDrawing = () => {
@@ -249,12 +266,17 @@ export default function Home() {
             
             isDrawingRef.current = false;
             lastPointRef.current = null;
-            pathRef.current = null;
-            rectRef.current = null;
+            rect = null;
             
-            const ctx = ctxRef.current;
-            if (ctx) {
-                ctx.closePath();
+            // Cancel any pending animation frame
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+            }
+            
+            // Final draw of any remaining points
+            if (pendingPointsRef.current.length > 0) {
+                batchDraw();
             }
         };
 
@@ -272,59 +294,61 @@ export default function Home() {
             continueDrawing(pos.x, pos.y);
         };
 
-        const handleMouseUp = (e: MouseEvent) => {
-            e.preventDefault();
-            stopDrawing();
-        };
-
-        // Touch events with better handling
+        // Touch events with immediate response
         const handleTouchStart = (e: TouchEvent) => {
             e.preventDefault();
+            e.stopPropagation();
             if (e.touches.length === 1) {
                 const touch = e.touches[0];
                 const pos = getPos(touch.clientX, touch.clientY);
                 startDrawing(pos.x, pos.y);
             }
+            return false;
         };
 
         const handleTouchMove = (e: TouchEvent) => {
-            if (!isDrawingRef.current || e.touches.length !== 1) return;
+            if (!isDrawingRef.current) return;
             e.preventDefault();
+            e.stopPropagation();
             
-            const touch = e.touches[0];
-            const pos = getPos(touch.clientX, touch.clientY);
-            continueDrawing(pos.x, pos.y);
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                const pos = getPos(touch.clientX, touch.clientY);
+                continueDrawing(pos.x, pos.y);
+            }
+            return false;
         };
 
         const handleTouchEnd = (e: TouchEvent) => {
             e.preventDefault();
+            e.stopPropagation();
             stopDrawing();
+            return false;
         };
 
-        // Add mouse event listeners
-        canvas.addEventListener('mousedown', handleMouseDown);
-        canvas.addEventListener('mousemove', handleMouseMove);
-        canvas.addEventListener('mouseup', handleMouseUp);
-        canvas.addEventListener('mouseleave', stopDrawing);
+        // Add event listeners with high priority
+        canvas.addEventListener('mousedown', handleMouseDown, { passive: false });
+        canvas.addEventListener('mousemove', handleMouseMove, { passive: false });
+        canvas.addEventListener('mouseup', stopDrawing, { passive: false });
+        canvas.addEventListener('mouseleave', stopDrawing, { passive: false });
 
-        // Add touch event listeners
-        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-        canvas.addEventListener('touchcancel', stopDrawing);
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
+        canvas.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
+        canvas.addEventListener('touchcancel', stopDrawing, { passive: false, capture: true });
 
         return () => {
             canvas.removeEventListener('mousedown', handleMouseDown);
             canvas.removeEventListener('mousemove', handleMouseMove);
-            canvas.removeEventListener('mouseup', handleMouseUp);
+            canvas.removeEventListener('mouseup', stopDrawing);
             canvas.removeEventListener('mouseleave', stopDrawing);
             
-            canvas.removeEventListener('touchstart', handleTouchStart);
-            canvas.removeEventListener('touchmove', handleTouchMove);
-            canvas.removeEventListener('touchend', handleTouchEnd);
-            canvas.removeEventListener('touchcancel', stopDrawing);
+            canvas.removeEventListener('touchstart', handleTouchStart, true);
+            canvas.removeEventListener('touchmove', handleTouchMove, true);
+            canvas.removeEventListener('touchend', handleTouchEnd, true);
+            canvas.removeEventListener('touchcancel', stopDrawing, true);
         };
-    }, [smoothLine]);
+    }, [queuePoint, batchDraw]);
 
     // API call
     const submitDrawing = useCallback(async () => {
@@ -349,10 +373,8 @@ export default function Home() {
             if (status === 'success') {
                 setResults(data);
                 
-                // Update variables if any assignments were made
                 data.forEach((result) => {
                     if (result.assign === true) {
-                        // Only store string or number values in dictOfVars
                         if (typeof result.result === 'string' || typeof result.result === 'number') {
                             const validResult = result.result as string | number;
                             setDictOfVars(prev => ({
@@ -373,7 +395,6 @@ export default function Home() {
         }
     }, [dictOfVars, subject]);
 
-    // Variable input handling
     const handleVariableInput = useCallback((input: string) => {
         try {
             const pairs = input.split(',').map(pair => pair.trim());
@@ -383,7 +404,6 @@ export default function Home() {
                 if (pair.includes('=')) {
                     const [key, value] = pair.split('=').map(s => s.trim());
                     if (key && value) {
-                        // Try to parse as number, otherwise keep as string
                         const numValue = parseFloat(value);
                         newVars[key] = isNaN(numValue) ? value : numValue;
                     }
@@ -396,7 +416,6 @@ export default function Home() {
         }
     }, []);
 
-    // MathJax integration
     const loadMathJax = useCallback(() => {
         if (window.MathJax) {
             setMathJaxLoaded(true);
@@ -427,17 +446,13 @@ export default function Home() {
         };
     }, []);
 
-    // Initialize MathJax
     useEffect(() => {
-        // Load MathJax
         const cleanup = loadMathJax();
-        
         return () => {
             if (cleanup) cleanup();
         };
     }, [loadMathJax]);
 
-    // Reset function
     const handleReset = useCallback(() => {
         resetCanvas();
         setResults([]);
@@ -551,11 +566,14 @@ export default function Home() {
             {/* Canvas */}
             <canvas
                 ref={canvasRef}
-                className="absolute top-20 left-0 w-full cursor-crosshair touch-none select-none"
+                className="absolute top-20 left-0 w-full cursor-crosshair"
                 style={{ 
                     height: 'calc(100vh - 100px)',
-                    imageRendering: 'pixelated',
-                    touchAction: 'none'
+                    touchAction: 'none',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    WebkitTouchCallout: 'none',
+                    WebkitTapHighlightColor: 'transparent'
                 }}
             />
 
