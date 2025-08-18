@@ -37,6 +37,73 @@ export default function Home() {
     const [latexPosition] = useState({ x: 10, y: 200 });
     const [, setMathJaxLoaded] = useState(false);
 
+    // Prevent scrolling when drawing on mobile
+    useEffect(() => {
+        const preventScroll = (e: TouchEvent) => {
+            if (isDrawing) {
+                e.preventDefault();
+            }
+        };
+
+        // Add passive: false to allow preventDefault
+        document.addEventListener('touchmove', preventScroll, { passive: false });
+        
+        return () => {
+            document.removeEventListener('touchmove', preventScroll);
+        };
+    }, [isDrawing]);
+
+    // Initialize canvas with proper sizing and context
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                // Set canvas size to match display size
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                
+                // Set drawing context properties
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                // Initialize with black background
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+    }, [color]);
+
+    // Handle window resize and orientation change for mobile
+    useEffect(() => {
+        const handleResize = () => {
+            const canvas = canvasRef.current;
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+            if (ctx) {
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                
+                // Redraw black background
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+        };
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', handleResize);
+        
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('orientationchange', handleResize);
+        };
+    }, []);
+
     // Canvas functions
     const resetCanvas = useCallback(() => {
         const canvas = canvasRef.current;
@@ -50,31 +117,66 @@ export default function Home() {
         }
     }, []);
 
-    const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Helper function to get coordinates from both mouse and touch events
+    const getCoordinates = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.beginPath();
-                ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-                setIsDrawing(true);
-            }
+        if (!canvas) return { x: 0, y: 0 };
+        
+        const rect = canvas.getBoundingClientRect();
+        
+        if ('touches' in e) {
+            // Touch event
+            const touch = e.touches[0];
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        } else {
+            // Mouse event
+            return {
+                x: e.nativeEvent.offsetX,
+                y: e.nativeEvent.offsetY
+            };
         }
     }, []);
 
-    const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!isDrawing) return;
+    const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        // Prevent default touch behavior to avoid scrolling
+        if ('touches' in e) {
+            e.preventDefault();
+        }
         
         const canvas = canvasRef.current;
         if (canvas) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
+                const coords = getCoordinates(e);
+                ctx.beginPath();
+                ctx.moveTo(coords.x, coords.y);
+                setIsDrawing(true);
+            }
+        }
+    }, [getCoordinates]);
+
+    const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isDrawing) return;
+        
+        // Prevent default touch behavior to avoid scrolling
+        if ('touches' in e) {
+            e.preventDefault();
+        }
+        
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                const coords = getCoordinates(e);
                 ctx.strokeStyle = color;
-                ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+                ctx.lineTo(coords.x, coords.y);
                 ctx.stroke();
             }
         }
-    }, [isDrawing, color]);
+    }, [isDrawing, color, getCoordinates]);
 
     const stopDrawing = useCallback(() => {
         setIsDrawing(false);
@@ -181,46 +283,15 @@ export default function Home() {
         };
     }, []);
 
-    // Initialize canvas and MathJax
+    // Initialize MathJax
     useEffect(() => {
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                // Set canvas size
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight - 100; // Leave space for controls
-                
-                // Set drawing properties
-                ctx.lineCap = 'round';
-                ctx.lineWidth = 3;
-                ctx.strokeStyle = 'white';
-                
-                // Set black background
-                ctx.fillStyle = 'black';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
-        }
-
         // Load MathJax
         const cleanup = loadMathJax();
         
-        // Handle window resize
-        const handleResize = () => {
-            if (canvas && canvas.getContext('2d')) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight - 100;
-                resetCanvas();
-            }
-        };
-        
-        window.addEventListener('resize', handleResize);
-        
         return () => {
-            window.removeEventListener('resize', handleResize);
             if (cleanup) cleanup();
         };
-    }, [loadMathJax, resetCanvas]);
+    }, [loadMathJax]);
 
     // Reset function
     const handleReset = useCallback(() => {
@@ -334,11 +405,15 @@ export default function Home() {
             {/* Canvas */}
             <canvas
                 ref={canvasRef}
-                className="absolute top-20 left-0 w-full cursor-crosshair"
+                className="absolute top-20 left-0 w-full cursor-crosshair touch-none"
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
                 onMouseOut={stopDrawing}
+                onTouchStart={startDrawing}
+                onTouchMove={draw}
+                onTouchEnd={stopDrawing}
+                onTouchCancel={stopDrawing}
                 style={{ height: 'calc(100vh - 100px)' }}
             />
 
@@ -394,6 +469,9 @@ export default function Home() {
                     <li>3. Click Calculate to solve</li>
                     <li>4. Drag result panel to move</li>
                 </ol>
+                <div className="mt-2 text-xs text-white/60">
+                    💡 Use mouse on desktop or touch on mobile to draw
+                </div>
             </div>
         </div>
     );
