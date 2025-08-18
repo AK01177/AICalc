@@ -459,20 +459,7 @@ export default function Home() {
                     </div>
                 </Draggable>
             )}
-
-            {/* Instructions */}
-            <div className="absolute bottom-4 left-4 glass-panel p-4 max-w-xs">
-                <h4 className="text-white font-semibold mb-2">How to use:</h4>
-                <ol className="text-white/80 text-sm space-y-1">
-                    <li>1. Select subject and set variables</li>
-                    <li>2. Draw your expression on the canvas</li>
-                    <li>3. Click Calculate to solve</li>
-                    <li>4. Drag result panel to move</li>
-                </ol>
-                <div className="mt-2 text-xs text-white/60">
-                    💡 Use mouse on desktop or touch on mobile to draw
-                </div>
-            </div>
         </div>
     );
 }
+
