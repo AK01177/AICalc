@@ -248,7 +248,6 @@ export default function Home() {
             if (!isDrawingRef.current) return;
             
             isDrawingRef.current = false;
-            setIsDrawing(false);
             lastPointRef.current = null;
             pathRef.current = null;
             rectRef.current = null;
