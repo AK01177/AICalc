@@ -58,9 +58,9 @@ export default function Home() {
         // CSS-based prevention
         canvas.style.touchAction = 'none';
         canvas.style.userSelect = 'none';
-        canvas.style.setProperty('-webkit-user-select', 'none');
-        canvas.style.setProperty('-webkit-touch-callout', 'none');
-        canvas.style.setProperty('-webkit-tap-highlight-color', 'transparent');
+        canvas.style.webkitUserSelect = 'none';
+        canvas.style.webkitTouchCallout = 'none';
+        canvas.style.webkitTapHighlightColor = 'transparent';
 
         // Event-based prevention
         canvas.addEventListener('touchstart', preventAll, { passive: false });
@@ -97,7 +97,7 @@ export default function Home() {
             desynchronized: true,
             willReadFrequently: false,
             powerPreference: 'high-performance'
-        }) as CanvasRenderingContext2D | null;
+        });
         
         if (!ctx) return;
         
@@ -129,7 +129,7 @@ export default function Home() {
         const handleResize = () => {
             const canvas = canvasRef.current;
             if (canvas) {
-                const ctx = ctxRef.current || canvas.getContext('2d') as CanvasRenderingContext2D;
+                const ctx = ctxRef.current || canvas.getContext('2d');
                 if (ctx) {
                     const dpr = Math.min(window.devicePixelRatio || 1, 2);
                     const rect = canvas.getBoundingClientRect();
@@ -174,7 +174,7 @@ export default function Home() {
     const resetCanvas = useCallback(() => {
         const canvas = canvasRef.current;
         if (canvas) {
-            const ctx = ctxRef.current || canvas.getContext('2d') as CanvasRenderingContext2D;
+            const ctx = ctxRef.current || canvas.getContext('2d');
             if (!ctx) return;
             const rect = canvas.getBoundingClientRect();
             ctx.clearRect(0, 0, rect.width, rect.height);
