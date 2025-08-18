@@ -157,11 +157,6 @@
   animation-delay: 4s;
 }
 
-/* Smooth transitions for all elements */
-* {
-  transition: all 0.3s ease-in-out;
-}
-
 /* Enhanced backdrop blur for modern glass effect */
 .backdrop-blur-sm {
   backdrop-filter: blur(8px);
