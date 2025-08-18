@@ -38,23 +38,42 @@ export default function Home() {
     const [latexPosition] = useState({ x: 10, y: 200 });
     const [, setMathJaxLoaded] = useState(false);
 
-    // Prevent scrolling when drawing on mobile
+    const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+    const isDrawingRef = useRef(false);
+    const rectRef = useRef<DOMRect | null>(null);
+    const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+    const pathRef = useRef<Path2D | null>(null);
+
+    // Prevent scrolling and zooming when drawing on mobile
     useEffect(() => {
-        const preventScroll = (e: TouchEvent) => {
-            if (isDrawing) {
-                e.preventDefault();
+        const preventDefault = (e: TouchEvent) => {
+            if (e.touches.length > 1) {
+                // Allow multi-touch gestures when not drawing
+                if (!isDrawingRef.current) return;
             }
+            e.preventDefault();
         };
 
-        // Add passive: false to allow preventDefault
-        document.addEventListener('touchmove', preventScroll, { passive: false });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        // Prevent touch behaviors on canvas
+        canvas.addEventListener('touchstart', preventDefault, { passive: false });
+        canvas.addEventListener('touchmove', preventDefault, { passive: false });
+        canvas.addEventListener('touchend', preventDefault, { passive: false });
+        
+        // Prevent context menu on long press
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
         
         return () => {
-            document.removeEventListener('touchmove', preventScroll);
+            if (canvas) {
+                canvas.removeEventListener('touchstart', preventDefault);
+                canvas.removeEventListener('touchmove', preventDefault);
+                canvas.removeEventListener('touchend', preventDefault);
+                canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
+            }
         };
-    }, [isDrawing]);
-
-    const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+    }, []);
 
     // Initialize canvas once with proper DPR scaling and context
     useEffect(() => {
@@ -68,11 +87,17 @@ export default function Home() {
         canvas.style.width = `${rect.width}px`;
         canvas.style.height = `${rect.height}px`;
 
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', {
+            alpha: false,
+            desynchronized: true, // Better performance on mobile
+            willReadFrequently: false
+        });
+        
         if (!ctx) return;
+        
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3; // Slightly thicker for mobile
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.strokeStyle = colorRef.current;
@@ -113,7 +138,7 @@ export default function Home() {
                     ctx.fillStyle = 'black';
                     ctx.fillRect(0, 0, rect.width, rect.height);
 
-                    ctx.lineWidth = 2;
+                    ctx.lineWidth = 3;
                     ctx.lineCap = 'round';
                     ctx.lineJoin = 'round';
                     ctx.strokeStyle = colorRef.current;
@@ -123,12 +148,19 @@ export default function Home() {
             }
         };
 
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('orientationchange', handleResize);
+        let resizeTimeout: NodeJS.Timeout;
+        const debouncedResize = () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(handleResize, 100);
+        };
+
+        window.addEventListener('resize', debouncedResize);
+        window.addEventListener('orientationchange', debouncedResize);
         
         return () => {
-            window.removeEventListener('resize', handleResize);
-            window.removeEventListener('orientationchange', handleResize);
+            clearTimeout(resizeTimeout);
+            window.removeEventListener('resize', debouncedResize);
+            window.removeEventListener('orientationchange', debouncedResize);
         };
     }, []);
 
@@ -145,85 +177,156 @@ export default function Home() {
         }
     }, []);
 
-    // Pointer-based drawing: immediate line segments with coalesced events for minimal lag
-    const isDrawingRef = useRef(false);
-    const rectRef = useRef<DOMRect | null>(null);
+    // Optimized drawing with smooth curves
+    const smoothLine = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
+        const lastPoint = lastPointRef.current;
+        
+        if (!lastPoint) {
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            lastPointRef.current = { x, y };
+            return;
+        }
 
+        // Calculate distance to determine if we should draw
+        const dx = x - lastPoint.x;
+        const dy = y - lastPoint.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Skip very small movements to reduce jitter
+        if (distance < 2) return;
+
+        // Use quadratic curves for smoother lines
+        const midX = (lastPoint.x + x) / 2;
+        const midY = (lastPoint.y + y) / 2;
+
+        ctx.quadraticCurveTo(lastPoint.x, lastPoint.y, midX, midY);
+        ctx.stroke();
+
+        lastPointRef.current = { x, y };
+    }, []);
+
+    // Optimized pointer-based drawing with better mobile support
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
         const getPos = (clientX: number, clientY: number) => {
             const rect = rectRef.current || canvas.getBoundingClientRect();
-            return { x: clientX - rect.left, y: clientY - rect.top };
+            return { 
+                x: (clientX - rect.left), 
+                y: (clientY - rect.top) 
+            };
         };
 
-        const handlePointerDown = (e: PointerEvent) => {
-            canvas.setPointerCapture?.(e.pointerId);
-            rectRef.current = canvas.getBoundingClientRect();
-            const pos = getPos(e.clientX, e.clientY);
-            isDrawingRef.current = true;
-            setIsDrawing(true);
+        const startDrawing = (x: number, y: number) => {
             const ctx = ctxRef.current;
             if (!ctx) return;
+
+            isDrawingRef.current = true;
+            setIsDrawing(true);
+            rectRef.current = canvas.getBoundingClientRect();
+            
             ctx.strokeStyle = colorRef.current;
+            ctx.globalCompositeOperation = 'source-over';
             ctx.beginPath();
-            ctx.moveTo(pos.x, pos.y);
+            ctx.moveTo(x, y);
+            
+            lastPointRef.current = { x, y };
+            pathRef.current = new Path2D();
+            pathRef.current.moveTo(x, y);
         };
 
-        const drawFromEvent = (e: PointerEvent) => {
+        const continueDrawing = (x: number, y: number) => {
             if (!isDrawingRef.current) return;
             const ctx = ctxRef.current;
             if (!ctx) return;
-            const events = (e as any).getCoalescedEvents?.() as PointerEvent[] | undefined;
-            if (events && events.length > 0) {
-                for (const ce of events) {
-                    const p = getPos(ce.clientX, ce.clientY);
-                    ctx.lineTo(p.x, p.y);
-                }
-                ctx.stroke();
-            } else {
-                const p = getPos(e.clientX, e.clientY);
-                ctx.lineTo(p.x, p.y);
-                ctx.stroke();
-            }
+
+            smoothLine(ctx, x, y);
         };
 
-        const handlePointerMove = (e: PointerEvent) => {
-            drawFromEvent(e);
-        };
-
-        const handlePointerRawUpdate = (e: PointerEvent) => {
-            drawFromEvent(e);
-        };
-
-        const stop = () => {
+        const stopDrawing = () => {
+            if (!isDrawingRef.current) return;
+            
             isDrawingRef.current = false;
             setIsDrawing(false);
+            lastPointRef.current = null;
+            pathRef.current = null;
+            rectRef.current = null;
+            
             const ctx = ctxRef.current;
             if (ctx) {
                 ctx.closePath();
             }
-            rectRef.current = null;
         };
 
-        canvas.addEventListener('pointerdown', handlePointerDown);
-        canvas.addEventListener('pointermove', handlePointerMove);
-        // pointerrawupdate can reduce latency on supported browsers (e.g., Chrome on Android)
-        canvas.addEventListener('pointerrawupdate', handlePointerRawUpdate as any);
-        canvas.addEventListener('pointerup', stop);
-        canvas.addEventListener('pointercancel', stop);
-        canvas.addEventListener('pointerout', stop);
+        // Mouse events
+        const handleMouseDown = (e: MouseEvent) => {
+            e.preventDefault();
+            const pos = getPos(e.clientX, e.clientY);
+            startDrawing(pos.x, pos.y);
+        };
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDrawingRef.current) return;
+            e.preventDefault();
+            const pos = getPos(e.clientX, e.clientY);
+            continueDrawing(pos.x, pos.y);
+        };
+
+        const handleMouseUp = (e: MouseEvent) => {
+            e.preventDefault();
+            stopDrawing();
+        };
+
+        // Touch events with better handling
+        const handleTouchStart = (e: TouchEvent) => {
+            e.preventDefault();
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                const pos = getPos(touch.clientX, touch.clientY);
+                startDrawing(pos.x, pos.y);
+            }
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            if (!isDrawingRef.current || e.touches.length !== 1) return;
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            const pos = getPos(touch.clientX, touch.clientY);
+            continueDrawing(pos.x, pos.y);
+        };
+
+        const handleTouchEnd = (e: TouchEvent) => {
+            e.preventDefault();
+            stopDrawing();
+        };
+
+        // Add mouse event listeners
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', stopDrawing);
+
+        // Add touch event listeners
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+        canvas.addEventListener('touchcancel', stopDrawing);
 
         return () => {
-            canvas.removeEventListener('pointerdown', handlePointerDown);
-            canvas.removeEventListener('pointermove', handlePointerMove);
-            canvas.removeEventListener('pointerrawupdate', handlePointerRawUpdate as any);
-            canvas.removeEventListener('pointerup', stop);
-            canvas.removeEventListener('pointercancel', stop);
-            canvas.removeEventListener('pointerout', stop);
+            canvas.removeEventListener('mousedown', handleMouseDown);
+            canvas.removeEventListener('mousemove', handleMouseMove);
+            canvas.removeEventListener('mouseup', handleMouseUp);
+            canvas.removeEventListener('mouseleave', stopDrawing);
+            
+            canvas.removeEventListener('touchstart', handleTouchStart);
+            canvas.removeEventListener('touchmove', handleTouchMove);
+            canvas.removeEventListener('touchend', handleTouchEnd);
+            canvas.removeEventListener('touchcancel', stopDrawing);
         };
-    }, []);
+    }, [smoothLine]);
 
     // API call
     const submitDrawing = useCallback(async () => {
@@ -353,12 +456,12 @@ export default function Home() {
             {/* Header Controls */}
             <div className="relative z-10 p-4 glass-panel mx-4 mt-4 mb-2">
                 <div className="flex flex-wrap items-center gap-4 justify-between">
-                                         <div className="flex items-center gap-4">
-                         <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                             A
-                         </div>
-                         <h1 className="text-xl font-bold text-white">Aryan's AI Calculator</h1>
-                     </div>
+                    <div className="flex items-center gap-4">
+                        <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                            A
+                        </div>
+                        <h1 className="text-xl font-bold text-white">Aryan's AI Calculator</h1>
+                    </div>
                     
                     <div className="flex flex-wrap items-center gap-4">
                         {/* Subject Selection */}
@@ -450,8 +553,12 @@ export default function Home() {
             {/* Canvas */}
             <canvas
                 ref={canvasRef}
-                className="absolute top-20 left-0 w-full cursor-crosshair touch-none select-none will-change-transform contain-paint"
-                style={{ height: 'calc(100vh - 100px)' }}
+                className="absolute top-20 left-0 w-full cursor-crosshair touch-none select-none"
+                style={{ 
+                    height: 'calc(100vh - 100px)',
+                    imageRendering: 'pixelated',
+                    touchAction: 'none'
+                }}
             />
 
             {/* Results Panel */}
@@ -496,8 +603,6 @@ export default function Home() {
                     </div>
                 </Draggable>
             )}
-
-
         </div>
     );
 }
