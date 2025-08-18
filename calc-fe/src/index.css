@@ -187,6 +187,30 @@
   background: rgba(255, 255, 255, 0.5);
 }
 
+/* Mobile touch improvements */
+@media (max-width: 768px) {
+  .touch-none {
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Prevent zoom on double tap for mobile */
+  * {
+    touch-action: manipulation;
+  }
+  
+  /* Improve touch targets on mobile */
+  button, input, select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
