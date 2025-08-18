@@ -147,18 +147,20 @@ export default function Home() {
 
     // Pointer-based drawing: immediate line segments with coalesced events for minimal lag
     const isDrawingRef = useRef(false);
+    const rectRef = useRef<DOMRect | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
         const getPos = (clientX: number, clientY: number) => {
-            const rect = canvas.getBoundingClientRect();
+            const rect = rectRef.current || canvas.getBoundingClientRect();
             return { x: clientX - rect.left, y: clientY - rect.top };
         };
 
         const handlePointerDown = (e: PointerEvent) => {
             canvas.setPointerCapture?.(e.pointerId);
+            rectRef.current = canvas.getBoundingClientRect();
             const pos = getPos(e.clientX, e.clientY);
             isDrawingRef.current = true;
             setIsDrawing(true);
@@ -169,7 +171,7 @@ export default function Home() {
             ctx.moveTo(pos.x, pos.y);
         };
 
-        const handlePointerMove = (e: PointerEvent) => {
+        const drawFromEvent = (e: PointerEvent) => {
             if (!isDrawingRef.current) return;
             const ctx = ctxRef.current;
             if (!ctx) return;
@@ -187,6 +189,14 @@ export default function Home() {
             }
         };
 
+        const handlePointerMove = (e: PointerEvent) => {
+            drawFromEvent(e);
+        };
+
+        const handlePointerRawUpdate = (e: PointerEvent) => {
+            drawFromEvent(e);
+        };
+
         const stop = () => {
             isDrawingRef.current = false;
             setIsDrawing(false);
@@ -194,10 +204,13 @@ export default function Home() {
             if (ctx) {
                 ctx.closePath();
             }
+            rectRef.current = null;
         };
 
         canvas.addEventListener('pointerdown', handlePointerDown);
         canvas.addEventListener('pointermove', handlePointerMove);
+        // pointerrawupdate can reduce latency on supported browsers (e.g., Chrome on Android)
+        canvas.addEventListener('pointerrawupdate', handlePointerRawUpdate as any);
         canvas.addEventListener('pointerup', stop);
         canvas.addEventListener('pointercancel', stop);
         canvas.addEventListener('pointerout', stop);
@@ -205,6 +218,7 @@ export default function Home() {
         return () => {
             canvas.removeEventListener('pointerdown', handlePointerDown);
             canvas.removeEventListener('pointermove', handlePointerMove);
+            canvas.removeEventListener('pointerrawupdate', handlePointerRawUpdate as any);
             canvas.removeEventListener('pointerup', stop);
             canvas.removeEventListener('pointercancel', stop);
             canvas.removeEventListener('pointerout', stop);
@@ -436,7 +450,7 @@ export default function Home() {
             {/* Canvas */}
             <canvas
                 ref={canvasRef}
-                className="absolute top-20 left-0 w-full cursor-crosshair touch-none"
+                className="absolute top-20 left-0 w-full cursor-crosshair touch-none select-none will-change-transform contain-paint"
                 style={{ height: 'calc(100vh - 100px)' }}
             />
 
