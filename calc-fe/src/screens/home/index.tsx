@@ -145,48 +145,8 @@ export default function Home() {
         }
     }, []);
 
-    // Pointer-based drawing with RAF and smoothing
+    // Pointer-based drawing: immediate line segments with coalesced events for minimal lag
     const isDrawingRef = useRef(false);
-    const lastPointRef = useRef<{ x: number; y: number } | null>(null);
-    const pendingPointsRef = useRef<Array<{ x: number; y: number }>>([]);
-    const rafIdRef = useRef<number | null>(null);
-
-    const scheduleDraw = useCallback(() => {
-        if (rafIdRef.current != null) return;
-        rafIdRef.current = requestAnimationFrame(() => {
-            rafIdRef.current = null;
-            const ctx = ctxRef.current;
-            const canvas = canvasRef.current;
-            if (!ctx || !canvas) return;
-
-            let prev = lastPointRef.current;
-            const points = pendingPointsRef.current;
-            if (points.length === 0) return;
-
-            ctx.strokeStyle = colorRef.current;
-            ctx.beginPath();
-            if (prev) {
-                ctx.moveTo(prev.x, prev.y);
-            } else {
-                ctx.moveTo(points[0].x, points[0].y);
-                prev = points[0];
-            }
-
-            for (let i = 0; i < points.length; i++) {
-                const curr = points[i];
-                const midX = (prev!.x + curr.x) / 2;
-                const midY = (prev!.y + curr.y) / 2;
-                ctx.quadraticCurveTo(prev!.x, prev!.y, midX, midY);
-                prev = curr;
-            }
-            ctx.stroke();
-
-            // Keep last point for next frame
-            lastPointRef.current = prev || lastPointRef.current;
-            // Clear processed points
-            pendingPointsRef.current.length = 0;
-        });
-    }, []);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -202,30 +162,38 @@ export default function Home() {
             const pos = getPos(e.clientX, e.clientY);
             isDrawingRef.current = true;
             setIsDrawing(true);
-            lastPointRef.current = pos;
-            pendingPointsRef.current.push(pos);
-            scheduleDraw();
+            const ctx = ctxRef.current;
+            if (!ctx) return;
+            ctx.strokeStyle = colorRef.current;
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
         };
 
         const handlePointerMove = (e: PointerEvent) => {
             if (!isDrawingRef.current) return;
+            const ctx = ctxRef.current;
+            if (!ctx) return;
             const events = (e as any).getCoalescedEvents?.() as PointerEvent[] | undefined;
             if (events && events.length > 0) {
                 for (const ce of events) {
                     const p = getPos(ce.clientX, ce.clientY);
-                    pendingPointsRef.current.push(p);
+                    ctx.lineTo(p.x, p.y);
                 }
+                ctx.stroke();
             } else {
                 const p = getPos(e.clientX, e.clientY);
-                pendingPointsRef.current.push(p);
+                ctx.lineTo(p.x, p.y);
+                ctx.stroke();
             }
-            scheduleDraw();
         };
 
         const stop = () => {
             isDrawingRef.current = false;
             setIsDrawing(false);
-            lastPointRef.current = null;
+            const ctx = ctxRef.current;
+            if (ctx) {
+                ctx.closePath();
+            }
         };
 
         canvas.addEventListener('pointerdown', handlePointerDown);
@@ -241,7 +209,7 @@ export default function Home() {
             canvas.removeEventListener('pointercancel', stop);
             canvas.removeEventListener('pointerout', stop);
         };
-    }, [scheduleDraw]);
+    }, []);
 
     // API call
     const submitDrawing = useCallback(async () => {
