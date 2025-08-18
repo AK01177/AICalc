@@ -26,7 +26,7 @@ interface ApiResponse {
 
 export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isDrawing, setIsDrawing] = useState(false);
+
     const [color, setColor] = useState('rgb(255, 255, 255)');
     const colorRef = useRef<string>('rgb(255, 255, 255)');
     const [dictOfVars, setDictOfVars] = useState<Record<string, number | string>>({});
@@ -224,7 +224,6 @@ export default function Home() {
             if (!ctx) return;
 
             isDrawingRef.current = true;
-            setIsDrawing(true);
             rectRef.current = canvas.getBoundingClientRect();
             
             ctx.strokeStyle = colorRef.current;
@@ -249,7 +248,6 @@ export default function Home() {
             if (!isDrawingRef.current) return;
             
             isDrawingRef.current = false;
-            setIsDrawing(false);
             lastPointRef.current = null;
             pathRef.current = null;
             rectRef.current = null;
