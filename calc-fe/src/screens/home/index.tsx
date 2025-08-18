@@ -310,10 +310,12 @@ export default function Home() {
             {/* Header Controls */}
             <div className="relative z-10 p-4 glass-panel mx-4 mt-4 mb-2">
                 <div className="flex flex-wrap items-center gap-4 justify-between">
-                    <div className="flex items-center gap-4">
-                        <Calculator className="w-6 h-6 text-white" />
-                        <h1 className="text-xl font-bold text-white">AI Calculator</h1>
-                    </div>
+                                         <div className="flex items-center gap-4">
+                         <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                             A
+                         </div>
+                         <h1 className="text-xl font-bold text-white">Aryan's AI Calculator</h1>
+                     </div>
                     
                     <div className="flex flex-wrap items-center gap-4">
                         {/* Subject Selection */}
@@ -459,7 +461,8 @@ export default function Home() {
                     </div>
                 </Draggable>
             )}
+
+
         </div>
     );
 }
-
