@@ -58,9 +58,9 @@ export default function Home() {
         // CSS-based prevention
         canvas.style.touchAction = 'none';
         canvas.style.userSelect = 'none';
-        canvas.style.webkitUserSelect = 'none';
-        canvas.style.webkitTouchCallout = 'none';
-        canvas.style.webkitTapHighlightColor = 'transparent';
+        canvas.style.setProperty('-webkit-user-select', 'none');
+        canvas.style.setProperty('-webkit-touch-callout', 'none');
+        canvas.style.setProperty('-webkit-tap-highlight-color', 'transparent');
 
         // Event-based prevention
         canvas.addEventListener('touchstart', preventAll, { passive: false });
