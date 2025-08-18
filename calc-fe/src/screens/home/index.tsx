@@ -97,7 +97,7 @@ export default function Home() {
             desynchronized: true,
             willReadFrequently: false,
             powerPreference: 'high-performance'
-        });
+        }) as CanvasRenderingContext2D | null;
         
         if (!ctx) return;
         
@@ -129,7 +129,7 @@ export default function Home() {
         const handleResize = () => {
             const canvas = canvasRef.current;
             if (canvas) {
-                const ctx = ctxRef.current || canvas.getContext('2d');
+                const ctx = ctxRef.current || canvas.getContext('2d') as CanvasRenderingContext2D;
                 if (ctx) {
                     const dpr = Math.min(window.devicePixelRatio || 1, 2);
                     const rect = canvas.getBoundingClientRect();
@@ -174,7 +174,7 @@ export default function Home() {
     const resetCanvas = useCallback(() => {
         const canvas = canvasRef.current;
         if (canvas) {
-            const ctx = ctxRef.current || canvas.getContext('2d');
+            const ctx = ctxRef.current || canvas.getContext('2d') as CanvasRenderingContext2D;
             if (!ctx) return;
             const rect = canvas.getBoundingClientRect();
             ctx.clearRect(0, 0, rect.width, rect.height);
