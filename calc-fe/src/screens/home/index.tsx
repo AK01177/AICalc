@@ -323,62 +323,47 @@ export default function EnhancedAICalculator() {
     setState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      // Try to send the drawing to a recognition API. The URL can be configured
-      // with REACT_APP_API_URL (example: https://your-api.example/recognize).
-  // Read a runtime-configured API URL from window.__REACT_APP_API_URL (optional).
-  // This avoids referencing `process` which can trigger TS errors in some setups.
-  const apiBase = (window as any).__REACT_APP_API_URL || '';
-  const endpoint = apiBase ? `${String(apiBase).replace(/\/$/, '')}/recognize` : '/api/recognize';
+      // Build endpoint: use Vite env VITE_API_BASE if provided, else dev proxy
+      const envBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
+      const apiBase = (envBase ? String(envBase) : '').replace(/\/$/, '');
+      const endpoint = apiBase ? `${apiBase}/calculate` : '/api/calculate';
 
-      // Convert dataURL to blob
+      // Prepare JSON payload with base64 image and metadata
       const dataUrl = canvas.toDataURL('image/png');
-      const blob = await (await fetch(dataUrl)).blob();
+      const payload = {
+        image: dataUrl,
+        dict_of_vars: state.dictOfVars,
+        subject: state.subject
+      };
 
-      const fd = new FormData();
-      fd.append('image', blob, `drawing-${Date.now()}.png`);
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      let usedMock = false;
-      let resultsFromServer: Result[] | null = null;
-
-      try {
-        const resp = await fetch(endpoint, { method: 'POST', body: fd });
-        if (resp.ok) {
-          // Expect server to return JSON in the same shape as Result[] or { results: Result[] }
-          const json = await resp.json();
-          if (Array.isArray(json)) resultsFromServer = json as Result[];
-          else if (json && Array.isArray(json.results)) resultsFromServer = json.results as Result[];
-        } else {
-          console.warn('Recognition API returned', resp.status);
-        }
-      } catch (err) {
-        console.warn('Failed to call recognition API:', err);
+      if (!resp.ok) {
+        throw new Error(`Request failed with status ${resp.status}`);
       }
 
+      const json = await resp.json();
+      const resultsFromServer: Result[] | null = Array.isArray(json)
+        ? (json as Result[])
+        : (Array.isArray(json?.data)
+            ? (json.data as Result[])
+            : (Array.isArray(json?.results) ? (json.results as Result[]) : null));
+
       if (!resultsFromServer) {
-        // Fallback to mock if server not available / failed
-        usedMock = true;
-        resultsFromServer = [
-          {
-            expr: '2x + 3 = 11',
-            result: 'x = 4',
-            assign: true,
-            steps: [
-              { latex: '2x + 3 = 11', explanation: 'Original equation' },
-              { latex: '2x = 11 - 3', explanation: 'Subtract 3 from both sides' },
-              { latex: '2x = 8', explanation: 'Simplify' },
-              { latex: 'x = 4', explanation: 'Divide by 2' }
-            ]
-          }
-        ];
+        throw new Error('Invalid response from server');
       }
 
       setState(prev => ({
         ...prev,
-        results: resultsFromServer!,
+        results: resultsFromServer,
         history: [
           {
             timestamp: new Date(),
-            results: resultsFromServer!,
+            results: resultsFromServer,
             subject: prev.subject,
             variables: prev.dictOfVars
           },
@@ -387,16 +372,15 @@ export default function EnhancedAICalculator() {
         loading: false
       }));
 
-      if (usedMock) console.info('Recognition API unavailable — used mock results');
-
     } catch (error) {
+      console.warn('Failed to process calculation:', error);
       setState(prev => ({ 
         ...prev, 
-        error: 'Failed to process calculation. Please try again.',
+        error: 'Failed to process calculation. Please check your backend and try again.',
         loading: false 
       }));
     }
-  }, []);
+  }, [state.dictOfVars, state.subject]);
 
   const downloadCanvas = useCallback(() => {
     const canvas = canvasRef.current;
