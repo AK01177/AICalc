@@ -27,14 +27,11 @@ interface ApiResponse {
 // Custom hook for mobile detection
 const useMobileDetection = () => {
     const [isMobile, setIsMobile] = useState(false);
-    const [isPortrait, setIsPortrait] = useState(false);
 
     useEffect(() => {
         const checkDevice = () => {
             const mobile = window.innerWidth <= 768;
-            const portrait = window.innerHeight > window.innerWidth;
             setIsMobile(mobile);
-            setIsPortrait(portrait);
         };
         
         checkDevice();
@@ -47,12 +44,12 @@ const useMobileDetection = () => {
         };
     }, []);
 
-    return { isMobile, isPortrait };
+    return { isMobile };
 };
 
 export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { isMobile, isPortrait } = useMobileDetection();
+    const { isMobile } = useMobileDetection();
 
     const [color, setColor] = useState('rgb(255, 255, 255)');
     const colorRef = useRef<string>('rgb(255, 255, 255)');
