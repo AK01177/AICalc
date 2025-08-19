@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-// FIX: Removed unused icons: Upload, Palette, Maximize2, Minimize2, Eye, EyeOff
 import {
   Calculator,
   RefreshCw,
@@ -13,7 +12,7 @@ import {
   Brain
 } from 'lucide-react';
 
-// --- TYPE DEFINITIONS START ---
+// --- TYPE DEFINITIONS ---
 interface Step {
   latex: string;
   explanation: string;
@@ -58,7 +57,6 @@ interface DrawingState {
   undoStack: string[];
   redoStack: string[];
 }
-// --- TYPE DEFINITIONS END ---
 
 const COLOR_THEMES: Record<string, string[]> = {
   neon: ['#ff0080', '#00ff80', '#0080ff', '#ff8000', '#8000ff', '#ff0040'],
@@ -220,7 +218,8 @@ export default function EnhancedAICalculator() {
     setDrawingState(prev => ({ ...prev, lastPoint: { x, y } }));
   }, 16), [state.brushSize, drawingState.isDrawing, drawingState.lastPoint]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+  // FINAL FIX: Use the native 'PointerEvent' type for the event parameter 'e'.
+  const handlePointerDown = useCallback((e: PointerEvent) => {
     e.preventDefault();
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -242,7 +241,7 @@ export default function EnhancedAICalculator() {
     }
   }, []);
 
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = useCallback((e: PointerEvent) => {
     e.preventDefault();
     if (!drawingState.isDrawing) return;
 
@@ -420,7 +419,6 @@ export default function EnhancedAICalculator() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    // FIX 1: Add the pointer event listeners back here
     canvas.addEventListener('pointerdown', handlePointerDown);
     canvas.addEventListener('pointermove', handlePointerMove);
     canvas.addEventListener('pointerup', handlePointerUp);
@@ -437,7 +435,6 @@ export default function EnhancedAICalculator() {
       canvas.removeEventListener('pointermove', handlePointerMove);
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointerleave', handlePointerUp);
-      
       canvas.removeEventListener('contextmenu', preventDefault);
       canvas.removeEventListener('touchstart', preventDefault);
       canvas.removeEventListener('touchmove', preventDefault);
@@ -639,10 +636,6 @@ export default function EnhancedAICalculator() {
 
       <canvas
         ref={canvasRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
         className={`absolute cursor-crosshair touch-none select-none ${
           isMobile ? 'top-0 left-0 w-full h-full' : 'top-0 left-0 w-full'
         }`}
@@ -813,4 +806,3 @@ export default function EnhancedAICalculator() {
     </div>
   );
 }
-
