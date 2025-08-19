@@ -630,6 +630,12 @@ export default function EnhancedAICalculator() {
           imageRendering: 'pixelated',
           touchAction: 'none'
         }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onContextMenu={(e) => e.preventDefault()}
       />
 
       <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 flex gap-2 ${isMobile ? 'flex-col' : 'flex-row'}`}>
