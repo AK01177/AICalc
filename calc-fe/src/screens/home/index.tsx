@@ -35,11 +35,7 @@ interface Response {
     steps?: Step[];
 }
 
-interface ApiResponse {
-    message: string;
-    data: Response[];
-    status: 'success' | 'error' | 'warning';
-}
+// Removed unused ApiResponse interface
 
 // Component prop types
 interface ColorSwatchProps {
@@ -232,17 +228,21 @@ export default function Home() {
             ctx.strokeStyle = colorRef.current;
         };
 
-        let resizeTimeout;
+        let resizeTimeout: number | undefined;
         const debouncedResize = () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(handleResize, 100);
+            if (resizeTimeout !== undefined) {
+                window.clearTimeout(resizeTimeout);
+            }
+            resizeTimeout = window.setTimeout(handleResize, 100);
         };
 
         window.addEventListener('resize', debouncedResize);
         window.addEventListener('orientationchange', debouncedResize);
         
         return () => {
-            clearTimeout(resizeTimeout);
+            if (resizeTimeout !== undefined) {
+                window.clearTimeout(resizeTimeout);
+            }
             window.removeEventListener('resize', debouncedResize);
             window.removeEventListener('orientationchange', debouncedResize);
         };
