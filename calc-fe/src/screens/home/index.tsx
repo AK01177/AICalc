@@ -476,16 +476,18 @@ export default function Home() {
             <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27 width=%2732%27 height=%2732%27 fill=%27none%27 stroke=%27rgb(148 163 184 / 0.05)%27%3e%3cpath d=%27m0 .5 32 32M32 .5 0 32%27/%3e%3c/svg%3e')] opacity-20"></div>
             
             {/* Header Controls */}
-            <div className={`relative z-10 p-4 glass-panel mx-4 mt-4 mb-2 ${isMobile ? 'mb-4' : 'mb-2'}`}>
-                <div className={`flex flex-wrap items-center gap-4 justify-between ${isMobile ? 'flex-col items-stretch' : ''}`}>
+            <div className={`relative z-10 glass-panel mx-4 mt-4 mb-2 ${isMobile ? 'mb-4 p-3' : 'p-4 mb-2'}`}>
+                <div className={`flex flex-wrap items-center gap-4 justify-between ${isMobile ? 'flex-col items-stretch gap-3' : ''}`}>
                     <div className="flex items-center gap-4 justify-center">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                        <div className={`bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg ${
+                            isMobile ? 'w-6 h-6 text-sm' : 'w-8 h-8 text-lg'
+                        }`}>
                             A
                         </div>
-                        <h1 className={`font-bold text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>Aryan's AI Calculator</h1>
+                        <h1 className={`font-bold text-white ${isMobile ? 'text-base' : 'text-xl'}`}>Aryan's AI Calculator</h1>
                     </div>
                     
-                    <div className={`flex flex-wrap items-center gap-4 ${isMobile ? 'flex-col items-stretch justify-center' : ''}`}>
+                    <div className={`flex flex-wrap items-center gap-4 ${isMobile ? 'flex-col items-stretch gap-3' : ''}`}>
                         {/* Subject Selection */}
                         <Select
                             data={SUBJECTS.map(s => ({ value: s.value, label: s.label }))}
@@ -497,6 +499,9 @@ export default function Home() {
                                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
                                     border: '1px solid rgba(255, 255, 255, 0.2)',
                                     color: 'white',
+                                    fontSize: isMobile ? '0.875rem' : '0.875rem',
+                                    padding: isMobile ? '0.5rem 0.75rem' : '0.5rem 1rem',
+                                    minHeight: isMobile ? '36px' : 'auto'
                                 },
                                 dropdown: {
                                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -514,46 +519,97 @@ export default function Home() {
                                 setVarInput(e.target.value);
                                 handleVariableInput(e.target.value);
                             }}
-                            className={`glass-input ${isMobile ? 'w-full' : 'w-48'}`}
+                            className={`glass-input ${isMobile ? 'w-full text-sm py-2' : 'w-48'}`}
+                            style={{
+                                minHeight: isMobile ? '36px' : 'auto'
+                            }}
                         />
                         
-                        {/* Color Palette */}
-                        <Group className={`flex-wrap ${isMobile ? 'justify-center' : ''}`}>
-                            {SWATCHES.map((swatch) => (
-                                <ColorSwatch
-                                    key={swatch}
-                                    color={swatch}
-                                    onClick={() => setColor(swatch)}
-                                    className={`cursor-pointer transition-all duration-200 ${
-                                        color === swatch ? 'ring-2 ring-white scale-110' : 'hover:scale-105'
-                                    }`}
-                                    size={isMobile ? 28 : 24}
-                                />
-                            ))}
-                        </Group>
+                        {/* Color Selection - Mobile dropdown, desktop palette */}
+                        {isMobile ? (
+                            <Select
+                                data={SWATCHES.map(swatch => ({ 
+                                    value: swatch, 
+                                    label: (
+                                        <div className="flex items-center gap-2">
+                                            <div 
+                                                className="w-4 h-4 rounded border border-white/30" 
+                                                style={{ backgroundColor: swatch }}
+                                            />
+                                            <span>Color</span>
+                                        </div>
+                                    )
+                                }))}
+                                value={color}
+                                onChange={(value) => setColor(value || 'rgb(255, 255, 255)')}
+                                className="w-full"
+                                placeholder="Select Color"
+                                styles={{
+                                    input: {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                        color: 'white',
+                                        fontSize: '0.875rem',
+                                        padding: '0.5rem 0.75rem',
+                                        minHeight: '36px'
+                                    },
+                                    dropdown: {
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                        backdropFilter: 'blur(10px)',
+                                    },
+                                    item: {
+                                        color: 'white',
+                                        '&[data-selected]': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                        },
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                        }
+                                    }
+                                }}
+                            />
+                        ) : (
+                            <Group className="flex-wrap">
+                                {SWATCHES.map((swatch) => (
+                                    <ColorSwatch
+                                        key={swatch}
+                                        color={swatch}
+                                        onClick={() => setColor(swatch)}
+                                        className={`cursor-pointer transition-all duration-200 ${
+                                            color === swatch ? 'ring-2 ring-white scale-110' : 'hover:scale-105'
+                                        }`}
+                                        size={24}
+                                    />
+                                ))}
+                            </Group>
+                        )}
                         
                         {/* Action Buttons */}
-                        <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
+                        <div className={`flex gap-2 ${isMobile ? 'flex-row gap-2' : ''}`}>
                             <Button
                                 onClick={handleReset}
                                 variant="outline"
-                                className="glass-button border-red-400/30 hover:border-red-400/50 text-red-300"
+                                className={`glass-button border-red-400/30 hover:border-red-400/50 text-red-300 ${
+                                    isMobile ? 'text-xs px-3 py-2 min-h-[36px]' : ''
+                                }`}
                             >
-                                <RefreshCw className="w-4 h-4 mr-2" />
-                                Reset
+                                <RefreshCw className={`mr-2 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                                {isMobile ? 'Reset' : 'Reset'}
                             </Button>
                             
                             <Button
                                 onClick={submitDrawing}
                                 disabled={loading}
-                                className="glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30"
+                                className={`glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30 ${
+                                    isMobile ? 'text-xs px-3 py-2 min-h-[36px]' : ''
+                                }`}
                             >
                                 {loading ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    <Loader2 className={`mr-2 animate-spin ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
                                 ) : (
-                                    <Upload className="w-4 h-4 mr-2" />
+                                    <Upload className={`mr-2 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
                                 )}
-                                {loading ? 'Processing...' : 'Calculate'}
+                                {loading ? (isMobile ? 'Processing...' : 'Processing...') : (isMobile ? 'Calculate' : 'Calculate')}
                             </Button>
                         </div>
                     </div>
@@ -561,11 +617,13 @@ export default function Home() {
                 
                 {/* Variables Display */}
                 {Object.keys(dictOfVars).length > 0 && (
-                    <div className="mt-4 p-3 bg-black/20 rounded-lg">
-                        <h3 className="text-sm font-semibold text-white/80 mb-2">Variables:</h3>
+                    <div className={`mt-4 p-3 bg-black/20 rounded-lg ${isMobile ? 'mt-3 p-2' : ''}`}>
+                        <h3 className={`font-semibold text-white/80 mb-2 ${isMobile ? 'text-xs' : 'text-sm'}`}>Variables:</h3>
                         <div className="flex flex-wrap gap-2">
                             {Object.entries(dictOfVars).map(([key, value]) => (
-                                <span key={key} className="px-2 py-1 bg-white/10 rounded text-sm text-white">
+                                <span key={key} className={`px-2 py-1 bg-white/10 rounded text-white ${
+                                    isMobile ? 'text-xs' : 'text-sm'
+                                }`}>
                                     {key} = {String(value)}
                                 </span>
                             ))}
@@ -639,16 +697,6 @@ export default function Home() {
                         )}
                     </div>
                 </Draggable>
-            )}
-
-            {/* Mobile Drawing Instructions */}
-            {isMobile && (
-                <div className="absolute top-4 right-4 z-30 glass-panel p-3 text-xs text-white/80 max-w-32">
-                    <div className="text-center">
-                        <div className="font-semibold mb-1">Draw here</div>
-                        <div className="text-white/60">Use your finger to draw mathematical expressions</div>
-                    </div>
-                </div>
             )}
         </div>
     );
