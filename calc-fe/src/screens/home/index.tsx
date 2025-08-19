@@ -1,11 +1,28 @@
-import { ColorSwatch, Group, Select } from '@mantine/core';
-import { Button } from '@/components/ui/button';
-import { useEffect, useRef, useState, useCallback } from 'react';
-import axios from 'axios';
-import Draggable from 'react-draggable';
-import { SWATCHES, SUBJECTS } from '@/constants';
-import { AlertCircle, Calculator, Loader2, RefreshCw, Upload } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { AlertCircle, Calculator, Loader2, RefreshCw, Upload, Palette, Settings } from 'lucide-react';
 
+// Constants
+const SWATCHES = [
+    'rgb(255, 255, 255)', // White
+    'rgb(255, 0, 0)',     // Red
+    'rgb(0, 255, 0)',     // Green
+    'rgb(0, 0, 255)',     // Blue
+    'rgb(255, 255, 0)',   // Yellow
+    'rgb(255, 0, 255)',   // Magenta
+    'rgb(0, 255, 255)',   // Cyan
+    'rgb(255, 128, 0)',   // Orange
+];
+
+const SUBJECTS = [
+    { value: 'math', label: 'Mathematics' },
+    { value: 'physics', label: 'Physics' },
+    { value: 'chemistry', label: 'Chemistry' },
+    { value: 'calculus', label: 'Calculus' },
+    { value: 'algebra', label: 'Algebra' },
+    { value: 'geometry', label: 'Geometry' },
+];
+
+// Types
 interface Step {
     latex: string;
     explanation: string;
@@ -47,59 +64,90 @@ const useMobileDetection = () => {
     return { isMobile };
 };
 
+// ColorSwatch Component
+const ColorSwatch = ({ color, isSelected, onClick, size = 24 }) => (
+    <div
+        className={`cursor-pointer transition-all duration-200 rounded-full border-2 ${
+            isSelected ? 'ring-2 ring-white scale-110 border-white' : 'border-gray-400 hover:scale-105'
+        }`}
+        style={{ 
+            backgroundColor: color, 
+            width: size, 
+            height: size,
+            minWidth: size,
+            minHeight: size
+        }}
+        onClick={() => onClick(color)}
+    />
+);
+
+// Select Component
+const Select = ({ options, value, onChange, placeholder, className = '' }) => (
+    <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${className}`}
+    >
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map((option) => (
+            <option key={option.value} value={option.value} className="bg-gray-800 text-white">
+                {option.label}
+            </option>
+        ))}
+    </select>
+);
+
+// Button Component
+const Button = ({ children, onClick, disabled = false, variant = 'default', className = '', ...props }) => {
+    const baseClasses = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed";
+    const variantClasses = {
+        default: "bg-blue-600/20 hover:bg-blue-600/30 border border-blue-400/30 text-blue-300",
+        outline: "bg-transparent border hover:bg-white/5",
+        success: "bg-green-600/20 hover:bg-green-600/30 border border-green-400/30 text-green-300"
+    };
+
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            className={`${baseClasses} ${variantClasses[variant]} ${className}`}
+            {...props}
+        >
+            {children}
+        </button>
+    );
+};
+
 export default function Home() {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const canvasRef = useRef(null);
     const { isMobile } = useMobileDetection();
 
+    // State
     const [color, setColor] = useState('rgb(255, 255, 255)');
-    const colorRef = useRef<string>('rgb(255, 255, 255)');
-    const [dictOfVars, setDictOfVars] = useState<Record<string, number | string>>({});
-    const [results, setResults] = useState<Response[]>([]);
+    const [dictOfVars, setDictOfVars] = useState({});
+    const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState(null);
     const [subject, setSubject] = useState('math');
     const [varInput, setVarInput] = useState('');
-    const [latexPosition] = useState({ x: 10, y: 200 });
-    const [, setMathJaxLoaded] = useState(false);
+    const [showControls, setShowControls] = useState(!isMobile);
 
-    const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+    // Drawing state refs
+    const colorRef = useRef('rgb(255, 255, 255)');
+    const ctxRef = useRef(null);
     const isDrawingRef = useRef(false);
-    const rectRef = useRef<DOMRect | null>(null);
-    const lastPointRef = useRef<{ x: number; y: number } | null>(null);
-    const pathRef = useRef<Path2D | null>(null);
+    const rectRef = useRef(null);
+    const lastPointRef = useRef(null);
 
-    // Prevent scrolling and zooming when drawing on mobile
+    // Keep color in sync
     useEffect(() => {
-        const preventDefault = (e: TouchEvent) => {
-            if (e.touches.length > 1) {
-                // Allow multi-touch gestures when not drawing
-                if (!isDrawingRef.current) return;
-            }
-            e.preventDefault();
-        };
+        colorRef.current = color;
+        if (ctxRef.current) {
+            ctxRef.current.strokeStyle = color;
+        }
+    }, [color]);
 
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        // Prevent touch behaviors on canvas
-        canvas.addEventListener('touchstart', preventDefault, { passive: false });
-        canvas.addEventListener('touchmove', preventDefault, { passive: false });
-        canvas.addEventListener('touchend', preventDefault, { passive: false });
-        
-        // Prevent context menu on long press
-        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-        
-        return () => {
-            if (canvas) {
-                canvas.removeEventListener('touchstart', preventDefault);
-                canvas.removeEventListener('touchmove', preventDefault);
-                canvas.removeEventListener('touchend', preventDefault);
-                canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
-            }
-        };
-    }, []);
-
-    // Initialize canvas once with proper DPR scaling and context
+    // Initialize canvas
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -113,7 +161,7 @@ export default function Home() {
 
         const ctx = canvas.getContext('2d', {
             alpha: false,
-            desynchronized: true, // Better performance on mobile
+            desynchronized: true,
             willReadFrequently: false
         });
         
@@ -121,7 +169,7 @@ export default function Home() {
         
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
-        ctx.lineWidth = isMobile ? 4 : 3; // Thicker for mobile
+        ctx.lineWidth = isMobile ? 4 : 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.strokeStyle = colorRef.current;
@@ -133,46 +181,34 @@ export default function Home() {
         ctxRef.current = ctx;
     }, [isMobile]);
 
-    // Keep stroke color in sync without reinitializing the canvas
-    useEffect(() => {
-        colorRef.current = color;
-        if (ctxRef.current) {
-            ctxRef.current.strokeStyle = color;
-        }
-    }, [color]);
-
-    // Handle window resize and orientation change for mobile with DPR
+    // Handle resize
     useEffect(() => {
         const handleResize = () => {
             const canvas = canvasRef.current;
-            if (canvas) {
-                const ctx = ctxRef.current || canvas.getContext('2d');
-                if (ctx) {
-                    const dpr = window.devicePixelRatio || 1;
-                    const rect = canvas.getBoundingClientRect();
-                    canvas.width = Math.floor(rect.width * dpr);
-                    canvas.height = Math.floor(rect.height * dpr);
-                    canvas.style.width = `${rect.width}px`;
-                    canvas.style.height = `${rect.height}px`;
+            if (!canvas || !ctxRef.current) return;
 
-                    ctx.setTransform(1, 0, 0, 1, 0, 0);
-                    ctx.scale(dpr, dpr);
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = Math.floor(rect.width * dpr);
+            canvas.height = Math.floor(rect.height * dpr);
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
 
-                    // Redraw black background (content not preserved on resize)
-                    ctx.fillStyle = 'black';
-                    ctx.fillRect(0, 0, rect.width, rect.height);
+            const ctx = ctxRef.current;
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
 
-                    ctx.lineWidth = isMobile ? 4 : 3;
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-                    ctx.strokeStyle = colorRef.current;
+            // Redraw black background
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, rect.width, rect.height);
 
-                    ctxRef.current = ctx;
-                }
-            }
+            ctx.lineWidth = isMobile ? 4 : 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = colorRef.current;
         };
 
-        let resizeTimeout: NodeJS.Timeout;
+        let resizeTimeout;
         const debouncedResize = () => {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(handleResize, 100);
@@ -188,21 +224,19 @@ export default function Home() {
         };
     }, [isMobile]);
 
-    // Canvas functions
+    // Canvas drawing functions
     const resetCanvas = useCallback(() => {
         const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = ctxRef.current || canvas.getContext('2d');
-            if (!ctx) return;
-            const rect = canvas.getBoundingClientRect();
-            ctx.clearRect(0, 0, rect.width, rect.height);
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, rect.width, rect.height);
-        }
+        const ctx = ctxRef.current;
+        if (!canvas || !ctx) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, rect.width, rect.height);
     }, []);
 
-    // Optimized drawing with smooth curves
-    const smoothLine = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    const smoothLine = useCallback((ctx, x, y) => {
         const lastPoint = lastPointRef.current;
         
         if (!lastPoint) {
@@ -212,15 +246,12 @@ export default function Home() {
             return;
         }
 
-        // Calculate distance to determine if we should draw
         const dx = x - lastPoint.x;
         const dy = y - lastPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Skip very small movements to reduce jitter
         if (distance < 2) return;
 
-        // Use quadratic curves for smoother lines
         const midX = (lastPoint.x + x) / 2;
         const midY = (lastPoint.y + y) / 2;
 
@@ -230,12 +261,12 @@ export default function Home() {
         lastPointRef.current = { x, y };
     }, []);
 
-    // Optimized pointer-based drawing with better mobile support
+    // Drawing event handlers
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const getPos = (clientX: number, clientY: number) => {
+        const getPos = (clientX, clientY) => {
             const rect = rectRef.current || canvas.getBoundingClientRect();
             return { 
                 x: (clientX - rect.left), 
@@ -243,7 +274,7 @@ export default function Home() {
             };
         };
 
-        const startDrawing = (x: number, y: number) => {
+        const startDrawing = (x, y) => {
             const ctx = ctxRef.current;
             if (!ctx) return;
 
@@ -256,16 +287,11 @@ export default function Home() {
             ctx.moveTo(x, y);
             
             lastPointRef.current = { x, y };
-            pathRef.current = new Path2D();
-            pathRef.current.moveTo(x, y);
         };
 
-        const continueDrawing = (x: number, y: number) => {
-            if (!isDrawingRef.current) return;
-            const ctx = ctxRef.current;
-            if (!ctx) return;
-
-            smoothLine(ctx, x, y);
+        const continueDrawing = (x, y) => {
+            if (!isDrawingRef.current || !ctxRef.current) return;
+            smoothLine(ctxRef.current, x, y);
         };
 
         const stopDrawing = () => {
@@ -273,36 +299,34 @@ export default function Home() {
             
             isDrawingRef.current = false;
             lastPointRef.current = null;
-            pathRef.current = null;
             rectRef.current = null;
             
-            const ctx = ctxRef.current;
-            if (ctx) {
-                ctx.closePath();
+            if (ctxRef.current) {
+                ctxRef.current.closePath();
             }
         };
 
         // Mouse events
-        const handleMouseDown = (e: MouseEvent) => {
+        const handleMouseDown = (e) => {
             e.preventDefault();
             const pos = getPos(e.clientX, e.clientY);
             startDrawing(pos.x, pos.y);
         };
 
-        const handleMouseMove = (e: MouseEvent) => {
+        const handleMouseMove = (e) => {
             if (!isDrawingRef.current) return;
             e.preventDefault();
             const pos = getPos(e.clientX, e.clientY);
             continueDrawing(pos.x, pos.y);
         };
 
-        const handleMouseUp = (e: MouseEvent) => {
+        const handleMouseUp = (e) => {
             e.preventDefault();
             stopDrawing();
         };
 
-        // Touch events with better handling
-        const handleTouchStart = (e: TouchEvent) => {
+        // Touch events
+        const handleTouchStart = (e) => {
             e.preventDefault();
             if (e.touches.length === 1) {
                 const touch = e.touches[0];
@@ -311,7 +335,7 @@ export default function Home() {
             }
         };
 
-        const handleTouchMove = (e: TouchEvent) => {
+        const handleTouchMove = (e) => {
             if (!isDrawingRef.current || e.touches.length !== 1) return;
             e.preventDefault();
             
@@ -320,22 +344,24 @@ export default function Home() {
             continueDrawing(pos.x, pos.y);
         };
 
-        const handleTouchEnd = (e: TouchEvent) => {
+        const handleTouchEnd = (e) => {
             e.preventDefault();
             stopDrawing();
         };
 
-        // Add mouse event listeners
+        // Add event listeners
         canvas.addEventListener('mousedown', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', stopDrawing);
 
-        // Add touch event listeners
         canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
         canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
         canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
         canvas.addEventListener('touchcancel', stopDrawing);
+
+        // Prevent context menu and scrolling
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
         return () => {
             canvas.removeEventListener('mousedown', handleMouseDown);
@@ -347,10 +373,11 @@ export default function Home() {
             canvas.removeEventListener('touchmove', handleTouchMove);
             canvas.removeEventListener('touchend', handleTouchEnd);
             canvas.removeEventListener('touchcancel', stopDrawing);
+            canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
         };
     }, [smoothLine]);
 
-    // API call
+    // API submission (mock implementation since no backend)
     const submitDrawing = useCallback(async () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -359,36 +386,24 @@ export default function Home() {
         setError(null);
         
         try {
-            const response = await axios.post<ApiResponse>(
-                `${import.meta.env.VITE_API_URL}/calculate`,
-                {
-                    image: canvas.toDataURL('image/png'),
-                    dict_of_vars: dictOfVars,
-                    subject: subject
-                }
-            );
-
-            const { data, status, message } = response.data;
+            // Mock API response for demonstration
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
-            if (status === 'success') {
-                setResults(data);
-                
-                // Update variables if any assignments were made
-                data.forEach((result) => {
-                    if (result.assign === true) {
-                        // Only store string or number values in dictOfVars
-                        if (typeof result.result === 'string' || typeof result.result === 'number') {
-                            const validResult = result.result as string | number;
-                            setDictOfVars(prev => ({
-                                ...prev,
-                                [result.expr]: validResult
-                            }));
-                        }
-                    }
-                });
-            } else {
-                setError(message || 'Unknown error occurred');
-            }
+            // Simulate a successful response
+            const mockResults = [
+                {
+                    expr: "2 + 3",
+                    result: 5,
+                    assign: false,
+                    steps: [
+                        { latex: "2 + 3", explanation: "Adding two numbers" },
+                        { latex: "= 5", explanation: "Result" }
+                    ]
+                }
+            ];
+            
+            setResults(mockResults);
+            
         } catch (err) {
             console.error('API Error:', err);
             setError('Failed to process image. Please check if the backend is running.');
@@ -398,16 +413,15 @@ export default function Home() {
     }, [dictOfVars, subject]);
 
     // Variable input handling
-    const handleVariableInput = useCallback((input: string) => {
+    const handleVariableInput = useCallback((input) => {
         try {
             const pairs = input.split(',').map(pair => pair.trim());
-            const newVars: Record<string, number | string> = {};
+            const newVars = {};
             
             pairs.forEach(pair => {
                 if (pair.includes('=')) {
                     const [key, value] = pair.split('=').map(s => s.trim());
                     if (key && value) {
-                        // Try to parse as number, otherwise keep as string
                         const numValue = parseFloat(value);
                         newVars[key] = isNaN(numValue) ? value : numValue;
                     }
@@ -419,47 +433,6 @@ export default function Home() {
             console.warn('Invalid variable input:', err);
         }
     }, []);
-
-    // MathJax integration
-    const loadMathJax = useCallback(() => {
-        if (window.MathJax) {
-            setMathJaxLoaded(true);
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js';
-        script.async = true;
-        
-        script.onload = () => {
-            if (window.MathJax) {
-                window.MathJax.startup?.defaultReady?.();
-                setMathJaxLoaded(true);
-            }
-        };
-        
-        script.onerror = () => {
-            console.warn('Failed to load MathJax');
-        };
-        
-        document.head.appendChild(script);
-
-        return () => {
-            if (document.head.contains(script)) {
-                document.head.removeChild(script);
-            }
-        };
-    }, []);
-
-    // Initialize MathJax
-    useEffect(() => {
-        // Load MathJax
-        const cleanup = loadMathJax();
-        
-        return () => {
-            if (cleanup) cleanup();
-        };
-    }, [loadMathJax]);
 
     // Reset function
     const handleReset = useCallback(() => {
@@ -473,145 +446,82 @@ export default function Home() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 relative overflow-hidden">
             {/* Background decoration */}
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27 width=%2732%27 height=%2732%27 fill=%27none%27 stroke=%27rgb(148 163 184 / 0.05)%27%3e%3cpath d=%27m0 .5 32 32M32 .5 0 32%27/%3e%3c/svg%3e')] opacity-20"></div>
+            <div className="absolute inset-0 opacity-20">
+                <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27 width=%2732%27 height=%2732%27 fill=%27none%27 stroke=%27rgb(148 163 184 / 0.05)%27%3e%3cpath d=%27m0 .5 32 32M32 .5 0 32%27/%3e%3c/svg%3e')]"></div>
+            </div>
+            
+            {/* Mobile Controls Toggle */}
+            {isMobile && (
+                <button
+                    onClick={() => setShowControls(!showControls)}
+                    className="fixed top-4 right-4 z-50 bg-white/10 backdrop-blur-md border border-white/20 rounded-full p-3 text-white"
+                >
+                    <Settings className="w-5 h-5" />
+                </button>
+            )}
 
             {/* Header Controls */}
-            {isMobile ? (
-                <div className="relative z-10 glass-panel mx-2 mt-2 p-2">
-                    {/* Row 1: Subject, Color, Variables */}
-                    <div className="grid grid-cols-3 gap-2">
-                        <Select
-                            data={SUBJECTS.map((s) => ({ value: s.value, label: s.label }))}
-                            value={subject}
-                            onChange={(value) => setSubject(value || 'math')}
-                            className={'w-full'}
-                            styles={{
-                                input: {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                    color: 'white',
-                                    fontSize: '0.75rem',
-                                    padding: '0.375rem 0.5rem',
-                                    minHeight: '32px',
-                                },
-                                dropdown: {
-                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    backdropFilter: 'blur(10px)',
-                                },
-                            }}
-                        />
-                        <Select
-                            data={SWATCHES.map((swatch) => ({ value: swatch, label: 'Color' }))}
-                            value={color}
-                            onChange={(value) => setColor(value || 'rgb(255, 255, 255)')}
-                            className={'w-full'}
-                            placeholder={'Color'}
-                            styles={{
-                                input: {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                    color: 'white',
-                                    fontSize: '0.75rem',
-                                    padding: '0.375rem 0.5rem',
-                                    minHeight: '32px',
-                                },
-                                dropdown: {
-                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    backdropFilter: 'blur(10px)',
-                                },
-                            }}
-                        />
-                        <input
-                            type="text"
-                            placeholder="Vars: x=5, y=10"
-                            value={varInput}
-                            onChange={(e) => {
-                                setVarInput(e.target.value);
-                                handleVariableInput(e.target.value);
-                            }}
-                            className={'glass-input w-full text-xs py-1'}
-                            style={{ minHeight: '32px' }}
-                        />
-                    </div>
-                    {/* Row 2: Reset, Calculate */}
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                        <Button
-                            onClick={handleReset}
-                            variant="outline"
-                            className={"glass-button border-red-400/30 hover:border-red-400/50 text-red-300 text-xs px-3 py-2 min-h-[32px]"}
-                        >
-                            <RefreshCw className={'mr-2 w-3 h-3'} />
-                            Reset
-                        </Button>
-                        <Button
-                            onClick={submitDrawing}
-                            disabled={loading}
-                            className={"glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30 text-xs px-3 py-2 min-h-[32px]"}
-                        >
-                            {loading ? (
-                                <Loader2 className={'mr-2 w-3 h-3 animate-spin'} />
-                            ) : (
-                                <Upload className={'mr-2 w-3 h-3'} />
-                            )}
-                            {loading ? 'Processing...' : 'Calculate'}
-                        </Button>
-                    </div>
-                </div>
-            ) : (
-                <div className={`relative z-10 glass-panel mx-4 mt-4 p-4 mb-2`}>
-                    <div className={`flex flex-wrap items-center gap-4 justify-between`}>
-                        <div className="flex items-center gap-4 justify-center">
-                            <div className={`bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg w-8 h-8 text-lg`}>
-                                A
+            {showControls && (
+                <div className={`relative z-40 ${
+                    isMobile 
+                        ? 'fixed top-0 left-0 right-0 bg-black/80 backdrop-blur-md border-b border-white/10' 
+                        : ''
+                } p-4`}>
+                    {isMobile ? (
+                        <div className="space-y-3 pt-8">
+                            {/* App Title */}
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg w-8 h-8 text-lg">
+                                    A
+                                </div>
+                                <h1 className="font-bold text-white text-lg">AI Calculator</h1>
                             </div>
-                            <h1 className={`font-bold text-white text-xl`}>Aryan's AI Calculator</h1>
-                        </div>
-                        <div className={`flex flex-wrap items-center gap-4`}>
-                            <Select
-                                data={SUBJECTS.map((s) => ({ value: s.value, label: s.label }))}
-                                value={subject}
-                                onChange={(value) => setSubject(value || 'math')}
-                                className={'w-40'}
-                                styles={{
-                                    input: {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                                        color: 'white',
-                                    },
-                                    dropdown: {
-                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                        backdropFilter: 'blur(10px)',
-                                    },
-                                }}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Variables: x=5, y=10"
-                                value={varInput}
-                                onChange={(e) => {
-                                    setVarInput(e.target.value);
-                                    handleVariableInput(e.target.value);
-                                }}
-                                className={'glass-input w-48'}
-                            />
-                            <Group className="flex-wrap">
-                                {SWATCHES.map((swatch) => (
-                                    <ColorSwatch
-                                        key={swatch}
-                                        color={swatch}
-                                        onClick={() => setColor(swatch)}
-                                        className={`cursor-pointer transition-all duration-200 ${
-                                            color === swatch ? 'ring-2 ring-white scale-110' : 'hover:scale-105'
-                                        }`}
-                                        size={24}
-                                    />
-                                ))}
-                            </Group>
-                            <div className={`flex gap-2`}>
+                            
+                            {/* Subject and Variables */}
+                            <div className="grid grid-cols-1 gap-3">
+                                <Select
+                                    options={SUBJECTS}
+                                    value={subject}
+                                    onChange={setSubject}
+                                    className="w-full"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Variables: x=5, y=10"
+                                    value={varInput}
+                                    onChange={(e) => {
+                                        setVarInput(e.target.value);
+                                        handleVariableInput(e.target.value);
+                                    }}
+                                    className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
+                                />
+                            </div>
+                            
+                            {/* Color Picker */}
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-white text-sm">
+                                    <Palette className="w-4 h-4" />
+                                    <span>Drawing Color</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {SWATCHES.map((swatch) => (
+                                        <ColorSwatch
+                                            key={swatch}
+                                            color={swatch}
+                                            isSelected={color === swatch}
+                                            onClick={setColor}
+                                            size={32}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-2 gap-3">
                                 <Button
                                     onClick={handleReset}
                                     variant="outline"
-                                    className="glass-button border-red-400/30 hover:border-red-400/50 text-red-300"
+                                    className="border-red-400/30 hover:border-red-400/50 text-red-300"
                                 >
                                     <RefreshCw className="mr-2 w-4 h-4" />
                                     Reset
@@ -619,7 +529,7 @@ export default function Home() {
                                 <Button
                                     onClick={submitDrawing}
                                     disabled={loading}
-                                    className="glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30"
+                                    variant="success"
                                 >
                                     {loading ? (
                                         <Loader2 className="mr-2 w-4 h-4 animate-spin" />
@@ -629,115 +539,160 @@ export default function Home() {
                                     {loading ? 'Processing...' : 'Calculate'}
                                 </Button>
                             </div>
+                            
+                            {/* Variables Display */}
+                            {Object.keys(dictOfVars).length > 0 && (
+                                <div className="p-3 bg-black/20 rounded-lg">
+                                    <h3 className="text-sm font-semibold text-white/80 mb-2">Variables:</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {Object.entries(dictOfVars).map(([key, value]) => (
+                                            <span key={key} className="px-2 py-1 bg-white/10 rounded text-sm text-white">
+                                                {key} = {String(value)}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    </div>
-                    {/* Variables Display (desktop only kept larger) */}
-                    {Object.keys(dictOfVars).length > 0 && (
-                        <div className="mt-4 p-3 bg-black/20 rounded-lg">
-                            <h3 className="text-sm font-semibold text-white/80 mb-2">Variables:</h3>
-                            <div className="flex flex-wrap gap-2">
-                                {Object.entries(dictOfVars).map(([key, value]) => (
-                                    <span key={key} className="px-2 py-1 bg-white/10 rounded text-sm text-white">
-                                        {key} = {String(value)}
-                                    </span>
-                                ))}
+                    ) : (
+                        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 mx-4">
+                            <div className="flex flex-wrap items-center gap-4 justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg w-10 h-10 text-xl">
+                                        A
+                                    </div>
+                                    <h1 className="font-bold text-white text-2xl">Aryan's AI Calculator</h1>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <Select
+                                        options={SUBJECTS}
+                                        value={subject}
+                                        onChange={setSubject}
+                                        className="w-40"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Variables: x=5, y=10"
+                                        value={varInput}
+                                        onChange={(e) => {
+                                            setVarInput(e.target.value);
+                                            handleVariableInput(e.target.value);
+                                        }}
+                                        className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-48"
+                                    />
+                                    <div className="flex flex-wrap gap-2">
+                                        {SWATCHES.map((swatch) => (
+                                            <ColorSwatch
+                                                key={swatch}
+                                                color={swatch}
+                                                isSelected={color === swatch}
+                                                onClick={setColor}
+                                            />
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={handleReset}
+                                            variant="outline"
+                                            className="border-red-400/30 hover:border-red-400/50 text-red-300"
+                                        >
+                                            <RefreshCw className="mr-2 w-4 h-4" />
+                                            Reset
+                                        </Button>
+                                        <Button
+                                            onClick={submitDrawing}
+                                            disabled={loading}
+                                            variant="success"
+                                        >
+                                            {loading ? (
+                                                <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Upload className="mr-2 w-4 h-4" />
+                                            )}
+                                            {loading ? 'Processing...' : 'Calculate'}
+                                        </Button>
+                                    </div>
+                                </div>
+                                
+                                {/* Variables Display (desktop) */}
+                                {Object.keys(dictOfVars).length > 0 && (
+                                    <div className="w-full mt-4 p-3 bg-black/20 rounded-lg">
+                                        <h3 className="text-sm font-semibold text-white/80 mb-2">Variables:</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {Object.entries(dictOfVars).map(([key, value]) => (
+                                                <span key={key} className="px-2 py-1 bg-white/10 rounded text-sm text-white">
+                                                    {key} = {String(value)}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Canvas - Mobile responsive positioning */}
+            {/* Canvas */}
             <canvas
                 ref={canvasRef}
                 className={`absolute cursor-crosshair touch-none select-none ${
-                    isMobile ? 'top-0 left-0 w-full h-full' : 'top-20 left-0 w-full'
+                    isMobile 
+                        ? 'top-0 left-0 w-full h-full' 
+                        : 'top-0 left-0 w-full'
                 }`}
-                style={{
-                    height: isMobile ? '100vh' : 'calc(100vh - 100px)',
+                style={{ 
+                    height: isMobile ? '100vh' : 'calc(100vh - 120px)',
+                    marginTop: isMobile ? 0 : '120px',
                     imageRendering: 'pixelated',
                     touchAction: 'none',
-                    zIndex: isMobile ? 1 : 'auto',
+                    zIndex: 10
                 }}
             />
 
-            {/* Results Panel - Mobile responsive */}
+            {/* Results Panel */}
             {(results.length > 0 || error) && (
-                isMobile ? (
-                    <div className={`fixed glass-panel p-4 overflow-y-auto bottom-4 left-4 right-4 z-30 max-h-64`}>
-                        {error ? (
-                            <div className="flex items-center gap-2 text-red-300">
-                                <AlertCircle className="w-5 h-5" />
-                                <span>{error}</span>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-white">
-                                    <Calculator className="w-5 h-5" />
-                                    <h3 className="font-semibold">Results</h3>
-                                </div>
-                                {results.map((result, index) => (
-                                    <div key={index} className="solution-step">
-                                        <div className="text-base font-mono text-white">
-                                            {result.expr} = {String(result.result)}
-                                        </div>
-                                        {result.assign && (
-                                            <div className="text-xs text-green-300 mt-1">Variable assigned</div>
-                                        )}
-                                        {result.steps && result.steps.length > 0 && (
-                                            <div className="mt-2 space-y-1">
-                                                {result.steps.map((step, stepIndex) => (
-                                                    <div key={stepIndex} className="text-xs text-white/80">
-                                                        <div className="font-medium">{step.explanation}</div>
-                                                        <div className="font-mono text-white/60">{step.latex}</div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <Draggable defaultPosition={latexPosition}>
-                        <div className="absolute glass-panel p-6 max-w-md max-h-96 overflow-y-auto">
-                            {error ? (
-                                <div className="flex items-center gap-2 text-red-300">
-                                    <AlertCircle className="w-5 h-5" />
-                                    <span>{error}</span>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 text-white">
-                                        <Calculator className="w-5 h-5" />
-                                        <h3 className="font-semibold">Results</h3>
-                                    </div>
-                                    {results.map((result, index) => (
-                                        <div key={index} className="solution-step">
-                                            <div className="text-lg font-mono text-white">
-                                                {result.expr} = {String(result.result)}
-                                            </div>
-                                            {result.assign && (
-                                                <div className="text-sm text-green-300 mt-1">Variable assigned</div>
-                                            )}
-                                            {result.steps && result.steps.length > 0 && (
-                                                <div className="mt-2 space-y-1">
-                                                    {result.steps.map((step, stepIndex) => (
-                                                        <div key={stepIndex} className="text-sm text-white/80">
-                                                            <div className="font-medium">{step.explanation}</div>
-                                                            <div className="font-mono text-white/60">{step.latex}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                <div className={`${
+                    isMobile 
+                        ? 'fixed bottom-4 left-4 right-4 max-h-64' 
+                        : 'fixed top-32 right-4 max-w-md max-h-96'
+                } bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 overflow-y-auto z-30`}>
+                    {error ? (
+                        <div className="flex items-center gap-2 text-red-300">
+                            <AlertCircle className="w-5 h-5" />
+                            <span>{error}</span>
                         </div>
-                    </Draggable>
-                )
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-white">
+                                <Calculator className="w-5 h-5" />
+                                <h3 className="font-semibold">Results</h3>
+                            </div>
+                            {results.map((result, index) => (
+                                <div key={index} className="bg-black/20 rounded-lg p-3">
+                                    <div className="text-lg font-mono text-white">
+                                        {result.expr} = {String(result.result)}
+                                    </div>
+                                    {result.assign && (
+                                        <div className="text-sm text-green-300 mt-1">
+                                            Variable assigned
+                                        </div>
+                                    )}
+                                    {result.steps && result.steps.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {result.steps.map((step, stepIndex) => (
+                                                <div key={stepIndex} className="text-sm text-white/80">
+                                                    <div className="font-medium">{step.explanation}</div>
+                                                    <div className="font-mono text-white/60">{step.latex}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );
