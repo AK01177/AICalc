@@ -420,6 +420,12 @@ export default function EnhancedAICalculator() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
+    // FIX 1: Add the pointer event listeners back here
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointerleave', handlePointerUp);
+    
     const preventDefault = (e: Event) => e.preventDefault();
     
     canvas.addEventListener('contextmenu', preventDefault);
@@ -427,6 +433,11 @@ export default function EnhancedAICalculator() {
     canvas.addEventListener('touchmove', preventDefault, { passive: false });
 
     return () => {
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointerleave', handlePointerUp);
+      
       canvas.removeEventListener('contextmenu', preventDefault);
       canvas.removeEventListener('touchstart', preventDefault);
       canvas.removeEventListener('touchmove', preventDefault);
@@ -802,3 +813,4 @@ export default function EnhancedAICalculator() {
     </div>
   );
 }
+
