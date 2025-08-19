@@ -476,82 +476,126 @@ export default function Home() {
             <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27 width=%2732%27 height=%2732%27 fill=%27none%27 stroke=%27rgb(148 163 184 / 0.05)%27%3e%3cpath d=%27m0 .5 32 32M32 .5 0 32%27/%3e%3c/svg%3e')] opacity-20"></div>
             
             {/* Header Controls */}
-            <div className={`relative z-10 glass-panel mx-4 mt-4 mb-2 ${isMobile ? 'mb-4 p-3' : 'p-4 mb-2'}`}>
-                <div className={`flex flex-wrap items-center gap-4 justify-between ${isMobile ? 'flex-col items-stretch gap-3' : ''}`}>
-                    <div className="flex items-center gap-4 justify-center">
-                        <div className={`bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg ${
-                            isMobile ? 'w-6 h-6 text-sm' : 'w-8 h-8 text-lg'
-                        }`}>
-                            A
-                        </div>
-                        <h1 className={`font-bold text-white ${isMobile ? 'text-base' : 'text-xl'}`}>Aryan's AI Calculator</h1>
-                    </div>
-                    
-                    <div className={`flex flex-wrap items-center gap-4 ${isMobile ? 'flex-col items-stretch gap-3' : ''}`}>
-                        {/* Subject Selection */}
+        </div>
+    );
+            {isMobile ? (
+                <div className={"relative z-10 glass-panel mx-2 mt-2 p-2"}>
+                    {/* Row 1: Subject, Color, Variables */}
+                    <div className="grid grid-cols-3 gap-2">
                         <Select
                             data={SUBJECTS.map(s => ({ value: s.value, label: s.label }))}
                             value={subject}
                             onChange={(value) => setSubject(value || 'math')}
-                            className={isMobile ? 'w-full' : 'w-40'}
+                            className={'w-full'}
                             styles={{
                                 input: {
                                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
                                     border: '1px solid rgba(255, 255, 255, 0.2)',
                                     color: 'white',
-                                    fontSize: isMobile ? '0.875rem' : '0.875rem',
-                                    padding: isMobile ? '0.5rem 0.75rem' : '0.5rem 1rem',
-                                    minHeight: isMobile ? '36px' : 'auto'
+                                    fontSize: '0.75rem',
+                                    padding: '0.375rem 0.5rem',
+                                    minHeight: '32px'
                                 },
                                 dropdown: {
                                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    backdropFilter: 'blur(10px)',
+                                    backdropFilter: 'blur(10px)'
                                 }
                             }}
                         />
-                        
-                        {/* Variable Input */}
+                        <Select
+                            data={SWATCHES.map(swatch => ({ value: swatch, label: 'Color' }))}
+                            value={color}
+                            onChange={(value) => setColor(value || 'rgb(255, 255, 255)')}
+                            className={'w-full'}
+                            placeholder={'Color'}
+                            styles={{
+                                input: {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    color: 'white',
+                                    fontSize: '0.75rem',
+                                    padding: '0.375rem 0.5rem',
+                                    minHeight: '32px'
+                                },
+                                dropdown: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    backdropFilter: 'blur(10px)'
+                                }
+                            }}
+                        />
                         <input
                             type="text"
-                            placeholder="Variables: x=5, y=10"
+                            placeholder="Vars: x=5, y=10"
                             value={varInput}
                             onChange={(e) => {
                                 setVarInput(e.target.value);
                                 handleVariableInput(e.target.value);
                             }}
-                            className={`glass-input ${isMobile ? 'w-full text-sm py-2' : 'w-48'}`}
-                            style={{
-                                minHeight: isMobile ? '36px' : 'auto'
-                            }}
+                            className={'glass-input w-full text-xs py-1'}
+                            style={{ minHeight: '32px' }}
                         />
-                        
-                        {/* Color Selection - Mobile dropdown, desktop palette */}
-                        {isMobile ? (
+                    </div>
+                    {/* Row 2: Reset, Calculate */}
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                        <Button
+                            onClick={handleReset}
+                            variant="outline"
+                            className={"glass-button border-red-400/30 hover:border-red-400/50 text-red-300 text-xs px-3 py-2 min-h-[32px]"}
+                        >
+                            <RefreshCw className={'mr-2 w-3 h-3'} />
+                            Reset
+                        </Button>
+                        <Button
+                            onClick={submitDrawing}
+                            disabled={loading}
+                            className={"glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30 text-xs px-3 py-2 min-h-[32px]"}
+                        >
+                            {loading ? (
+                                <Loader2 className={'mr-2 w-3 h-3 animate-spin'} />
+                            ) : (
+                                <Upload className={'mr-2 w-3 h-3'} />
+                            )}
+                            {loading ? 'Processing...' : 'Calculate'}
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className={`relative z-10 glass-panel mx-4 mt-4 p-4 mb-2`}>
+                    <div className={`flex flex-wrap items-center gap-4 justify-between`}>
+                        <div className="flex items-center gap-4 justify-center">
+                            <div className={`bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg w-8 h-8 text-lg`}>
+                                A
+                            </div>
+                            <h1 className={`font-bold text-white text-xl`}>Aryan's AI Calculator</h1>
+                        </div>
+                        <div className={`flex flex-wrap items-center gap-4`}>
                             <Select
-                                data={SWATCHES.map(swatch => ({ 
-                                    value: swatch, 
-                                    label: `Color ${swatch}`,
-                                }))}
-                                value={color}
-                                onChange={(value) => setColor(value || 'rgb(255, 255, 255)')}
-                                className="w-full"
-                                placeholder="Select Color"
+                                data={SUBJECTS.map(s => ({ value: s.value, label: s.label }))}
+                                value={subject}
+                                onChange={(value) => setSubject(value || 'math')}
+                                className={'w-40'}
                                 styles={{
                                     input: {
                                         backgroundColor: 'rgba(255, 255, 255, 0.1)',
                                         border: '1px solid rgba(255, 255, 255, 0.2)',
-                                        color: 'white',
-                                        fontSize: '0.875rem',
-                                        padding: '0.5rem 0.75rem',
-                                        minHeight: '36px'
+                                        color: 'white'
                                     },
                                     dropdown: {
                                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                        backdropFilter: 'blur(10px)',
+                                        backdropFilter: 'blur(10px)'
                                     }
                                 }}
                             />
-                        ) : (
+                            <input
+                                type="text"
+                                placeholder="Variables: x=5, y=10"
+                                value={varInput}
+                                onChange={(e) => {
+                                    setVarInput(e.target.value);
+                                    handleVariableInput(e.target.value);
+                                }}
+                                className={'glass-input w-48'}
+                            />
                             <Group className="flex-wrap">
                                 {SWATCHES.map((swatch) => (
                                     <ColorSwatch
@@ -565,59 +609,47 @@ export default function Home() {
                                     />
                                 ))}
                             </Group>
+                            <div className={`flex gap-2`}>
+                                <Button
+                                    onClick={handleReset}
+                                    variant="outline"
+                                    className="glass-button border-red-400/30 hover:border-red-400/50 text-red-300"
+                                >
+                                    <RefreshCw className="mr-2 w-4 h-4" />
+                                    Reset
+                                </Button>
+                                <Button
+                                    onClick={submitDrawing}
+                                    disabled={loading}
+                                    className="glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30"
+                                >
+                                    {loading ? (
+                                        <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Upload className="mr-2 w-4 h-4" />
+                                    )}
+                                    {loading ? 'Processing...' : 'Calculate'}
+                                </Button>
+                            </div>
+                        </div>
+                        {/* Variables Display (desktop only kept larger) */}
+                        {Object.keys(dictOfVars).length > 0 && (
+                            <div className="mt-4 p-3 bg-black/20 rounded-lg">
+                                <h3 className="text-sm font-semibold text-white/80 mb-2">Variables:</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {Object.entries(dictOfVars).map(([key, value]) => (
+                                        <span key={key} className="px-2 py-1 bg-white/10 rounded text-sm text-white">
+                                            {key} = {String(value)}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         )}
-                        
-                        {/* Action Buttons */}
-                        <div className={`flex gap-2 ${isMobile ? 'flex-row gap-2' : ''}`}>
-                            <Button
-                                onClick={handleReset}
-                                variant="outline"
-                                className={`glass-button border-red-400/30 hover:border-red-400/50 text-red-300 ${
-                                    isMobile ? 'text-xs px-3 py-2 min-h-[36px]' : ''
-                                }`}
-                            >
-                                <RefreshCw className={`mr-2 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
-                                {isMobile ? 'Reset' : 'Reset'}
-                            </Button>
-                            
-                            <Button
-                                onClick={submitDrawing}
-                                disabled={loading}
-                                className={`glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30 ${
-                                    isMobile ? 'text-xs px-3 py-2 min-h-[36px]' : ''
-                                }`}
-                            >
-                                {loading ? (
-                                    <Loader2 className={`mr-2 animate-spin ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
-                                ) : (
-                                    <Upload className={`mr-2 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
-                                )}
-                                {loading ? (isMobile ? 'Processing...' : 'Processing...') : (isMobile ? 'Calculate' : 'Calculate')}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-                
-                {/* Variables Display */}
-                {Object.keys(dictOfVars).length > 0 && (
-                    <div className={`mt-4 p-3 bg-black/20 rounded-lg ${isMobile ? 'mt-3 p-2' : ''}`}>
-                        <h3 className={`font-semibold text-white/80 mb-2 ${isMobile ? 'text-xs' : 'text-sm'}`}>Variables:</h3>
-                        <div className="flex flex-wrap gap-2">
-                            {Object.entries(dictOfVars).map(([key, value]) => (
-                                <span key={key} className={`px-2 py-1 bg-white/10 rounded text-white ${
-                                    isMobile ? 'text-xs' : 'text-sm'
-                                }`}>
-                                    {key} = {String(value)}
-                                </span>
-                            ))}
-                        </div>
                     </div>
                 )}
-            </div>
-
-            {/* Canvas - Mobile responsive positioning */}
-            <canvas
-                ref={canvasRef}
+                {/* Canvas - Mobile responsive positioning */}
+                <canvas
+                    ref={canvasRef}
                 className={`absolute cursor-crosshair touch-none select-none ${
                     isMobile 
                         ? 'top-0 left-0 w-full h-full' 
