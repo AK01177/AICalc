@@ -1,26 +1,19 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+// FIX: Removed unused icons: Upload, Palette, Maximize2, Minimize2, Eye, EyeOff
 import {
   Calculator,
   RefreshCw,
-  Upload,
   Loader2,
   AlertCircle,
   Download,
   Save,
-  Palette,
-  Maximize2,
-  Minimize2,
   History,
   Settings,
   Zap,
-  Brain,
-  Eye,
-  EyeOff
+  Brain
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS START ---
-// By defining the shapes of our data, we fix the "Property does not exist on type 'never'" errors.
-
 interface Step {
   latex: string;
   explanation: string;
@@ -42,10 +35,10 @@ interface HistoryEntry {
 
 interface CalculatorState {
   color: string;
-  colorTheme: keyof typeof COLOR_THEMES; // Use keys of the theme object for type safety
+  colorTheme: keyof typeof COLOR_THEMES;
   dictOfVars: Record<string, string | number>;
-  results: Result[]; // Typed as an array of Result objects
-  history: HistoryEntry[]; // Typed as an array of HistoryEntry objects
+  results: Result[];
+  history: HistoryEntry[];
   loading: boolean;
   error: string | null;
   subject: string;
@@ -61,13 +54,12 @@ interface CalculatorState {
 interface DrawingState {
   isDrawing: boolean;
   lastPoint: { x: number; y: number } | null;
-  paths: any[]; // Kept as 'any' as it's not being used. Define if needed.
+  paths: any[];
   undoStack: string[];
   redoStack: string[];
 }
 // --- TYPE DEFINITIONS END ---
 
-// Enhanced color palette with gradients and themes
 const COLOR_THEMES: Record<string, string[]> = {
   neon: ['#ff0080', '#00ff80', '#0080ff', '#ff8000', '#8000ff', '#ff0040'],
   pastel: ['#ffb3e6', '#b3ffe6', '#b3d9ff', '#ffe6b3', '#e6b3ff', '#ffccb3'],
@@ -84,7 +76,6 @@ const SUBJECTS = [
   { value: 'geometry', label: '📐 Geometry' }
 ];
 
-// Performance optimized mobile detection
 const useMobileDetection = () => {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -103,7 +94,6 @@ const useMobileDetection = () => {
   return isMobile;
 };
 
-// Utility functions with added types
 const debounce = <F extends (...args: any[]) => any>(func: F, wait: number) => {
   let timeout: ReturnType<typeof setTimeout>;
   return function executedFunction(...args: Parameters<F>) {
@@ -128,15 +118,11 @@ const throttle = <F extends (...args: any[]) => any>(func: F, limit: number) => 
   };
 };
 
-
-// Enhanced Calculator Component
 export default function EnhancedAICalculator() {
-  // FIX: Added types for refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const isMobile = useMobileDetection();
   
-  // FIX: Applied the CalculatorState interface to useState. This solves all 'never' type errors.
   const [state, setState] = useState<CalculatorState>({
     color: '#00ff80',
     colorTheme: 'neon',
@@ -155,7 +141,6 @@ export default function EnhancedAICalculator() {
     autoSave: true
   });
 
-  // FIX: Applied the DrawingState interface
   const [drawingState, setDrawingState] = useState<DrawingState>({
     isDrawing: false,
     lastPoint: null,
@@ -164,12 +149,11 @@ export default function EnhancedAICalculator() {
     redoStack: []
   });
 
-  // Performance optimized canvas setup
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2); // Limit DPR for performance
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const rect = canvas.getBoundingClientRect();
     
     canvas.width = rect.width * dpr;
@@ -206,7 +190,6 @@ export default function EnhancedAICalculator() {
     }
   }, [state.color, state.brushSize, state.smoothing]);
 
-  // Enhanced drawing with pressure sensitivity simulation
   const drawSmooth = useCallback(throttle((x: number, y: number, pressure = 1) => {
     const ctx = ctxRef.current;
     if (!ctx || !drawingState.isDrawing) return;
@@ -220,7 +203,6 @@ export default function EnhancedAICalculator() {
       return;
     }
 
-    // Calculate dynamic brush size based on speed (simulated pressure)
     const dx = x - lastPoint.x;
     const dy = y - lastPoint.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -229,7 +211,6 @@ export default function EnhancedAICalculator() {
 
     ctx.lineWidth = dynamicSize;
     
-    // Smooth quadratic curves
     const midX = (lastPoint.x + x) / 2;
     const midY = (lastPoint.y + y) / 2;
     
@@ -239,7 +220,6 @@ export default function EnhancedAICalculator() {
     setDrawingState(prev => ({ ...prev, lastPoint: { x, y } }));
   }, 16), [state.brushSize, drawingState.isDrawing, drawingState.lastPoint]);
 
-  // Enhanced event handlers with event types
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -252,7 +232,7 @@ export default function EnhancedAICalculator() {
       ...prev, 
       isDrawing: true, 
       lastPoint: { x, y },
-      redoStack: [] // Clear redo stack on new drawing
+      redoStack: []
     }));
 
     const ctx = ctxRef.current;
@@ -285,18 +265,16 @@ export default function EnhancedAICalculator() {
       lastPoint: null 
     }));
 
-    // Save to undo stack
     const canvas = canvasRef.current;
     if (canvas && state.autoSave) {
       const imageData = canvas.toDataURL();
       setDrawingState(prev => ({
         ...prev,
-        undoStack: [...prev.undoStack.slice(-9), imageData] // Keep last 10 states
+        undoStack: [...prev.undoStack.slice(-9), imageData]
       }));
     }
   }, [drawingState.isDrawing, state.autoSave]);
 
-  // Canvas operations
   const clearCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
@@ -333,7 +311,6 @@ export default function EnhancedAICalculator() {
     }));
   }, [drawingState.undoStack, clearCanvas]);
 
-  // Enhanced API call with retry logic
   const submitDrawing = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -341,10 +318,8 @@ export default function EnhancedAICalculator() {
     setState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      // Simulate API call since we don't have the actual endpoint
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Mock response - This now matches our Result[] type
       const mockResults: Result[] = [
         {
           expr: "2x + 3 = 11",
@@ -369,7 +344,7 @@ export default function EnhancedAICalculator() {
             subject: prev.subject,
             variables: prev.dictOfVars 
           },
-          ...prev.history.slice(0, 19) // Keep last 20 calculations
+          ...prev.history.slice(0, 19)
         ],
         loading: false
       }));
@@ -383,7 +358,6 @@ export default function EnhancedAICalculator() {
     }
   }, []);
 
-  // Download functionality
   const downloadCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -394,7 +368,6 @@ export default function EnhancedAICalculator() {
     link.click();
   }, []);
 
-  // Reset everything
   const handleReset = useCallback(() => {
     clearCanvas();
     setState(prev => ({ 
@@ -412,7 +385,6 @@ export default function EnhancedAICalculator() {
     }));
   }, [clearCanvas]);
 
-  // Theme switching
   const switchTheme = useCallback((theme: keyof typeof COLOR_THEMES) => {
     setState(prev => ({ 
       ...prev, 
@@ -421,7 +393,6 @@ export default function EnhancedAICalculator() {
     }));
   }, []);
 
-  // Variable handling
   const updateVariable = useCallback((input: string) => {
     try {
       const pairs = input.split(',').map(pair => pair.trim());
@@ -443,7 +414,6 @@ export default function EnhancedAICalculator() {
     }
   }, []);
 
-  // Initialize canvas and event listeners
   useEffect(() => {
     setupCanvas();
     
@@ -451,10 +421,6 @@ export default function EnhancedAICalculator() {
     if (!canvas) return;
     
     const preventDefault = (e: Event) => e.preventDefault();
-    
-    // React's event system already handles these well, but if direct listeners are needed:
-    // We can use the already defined handlers. No need to redefine them.
-    // Note: React's onPointerDown etc. are often preferred over addEventListener in React components.
     
     canvas.addEventListener('contextmenu', preventDefault);
     canvas.addEventListener('touchstart', preventDefault, { passive: false });
@@ -467,26 +433,21 @@ export default function EnhancedAICalculator() {
     };
   }, [handlePointerDown, handlePointerMove, handlePointerUp, setupCanvas]);
 
-  // Update canvas style when relevant state changes
   useEffect(() => {
     updateCanvasStyle();
   }, [updateCanvasStyle]);
 
-  // Memoized color palette
   const currentColors = useMemo(() => COLOR_THEMES[state.colorTheme], [state.colorTheme]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      {/* Animated background */}
       <div className="absolute inset-0 opacity-20">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-teal-600/10 animate-pulse"></div>
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),transparent_50%)] animate-pulse"></div>
       </div>
 
-      {/* Enhanced Header */}
       <div className={`relative z-10 backdrop-blur-xl bg-black/20 border-b border-white/10 ${isMobile ? 'p-2' : 'p-4'}`}>
         <div className="flex items-center justify-between">
-          {/* Logo and Title */}
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -504,9 +465,7 @@ export default function EnhancedAICalculator() {
             )}
           </div>
 
-          {/* Controls */}
           <div className="flex items-center gap-2">
-            {/* Subject Selector */}
             <select
               value={state.subject}
               onChange={(e) => setState(prev => ({ ...prev, subject: e.target.value }))}
@@ -519,7 +478,6 @@ export default function EnhancedAICalculator() {
               ))}
             </select>
 
-            {/* Action Buttons */}
             <div className="flex gap-1">
               <button
                 onClick={() => setState(prev => ({ ...prev, showHistory: !prev.showHistory }))}
@@ -548,7 +506,6 @@ export default function EnhancedAICalculator() {
           </div>
         </div>
 
-        {/* Mobile Controls Row */}
         {isMobile && (
           <div className="mt-3 flex gap-2">
             <input
@@ -573,7 +530,6 @@ export default function EnhancedAICalculator() {
         )}
       </div>
 
-      {/* Settings Panel */}
       {state.showSettings && (
         <div className="absolute top-20 right-4 z-30 bg-black/80 backdrop-blur-xl border border-white/20 rounded-xl p-4 w-72">
           <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
@@ -581,7 +537,6 @@ export default function EnhancedAICalculator() {
             Settings
           </h3>
           
-          {/* Color Themes */}
           <div className="mb-4">
             <label className="text-white/80 text-sm block mb-2">Color Theme</label>
             <div className="grid grid-cols-2 gap-2">
@@ -596,7 +551,6 @@ export default function EnhancedAICalculator() {
                   }`}
                 >
                   <div className="flex gap-1 mb-1">
-                    {/* FIX: Added types to map callback parameters */}
                     {COLOR_THEMES[theme].slice(0, 4).map((color: string, i: number) => (
                       <div key={i} className="w-3 h-3 rounded" style={{ backgroundColor: color }}></div>
                     ))}
@@ -607,7 +561,6 @@ export default function EnhancedAICalculator() {
             </div>
           </div>
 
-          {/* Brush Settings */}
           <div className="mb-4">
             <label className="text-white/80 text-sm block mb-2">Brush Size: {state.brushSize}px</label>
             <input
@@ -620,7 +573,6 @@ export default function EnhancedAICalculator() {
             />
           </div>
 
-          {/* Toggles */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-white/80 text-sm cursor-pointer">
               <input
@@ -644,11 +596,9 @@ export default function EnhancedAICalculator() {
         </div>
       )}
 
-      {/* Color Palette */}
       <div className="absolute top-24 left-4 z-20">
         <div className="bg-black/40 backdrop-blur-xl border border-white/20 rounded-xl p-3">
           <div className="grid grid-cols-3 gap-2">
-            {/* FIX: Added types to map callback parameters */}
             {currentColors.map((color: string, index: number) => (
               <button
                 key={index}
@@ -664,7 +614,6 @@ export default function EnhancedAICalculator() {
             ))}
           </div>
           
-          {/* Custom Color Picker */}
           <div className="mt-2 pt-2 border-t border-white/20">
             <input
               type="color"
@@ -677,7 +626,6 @@ export default function EnhancedAICalculator() {
         </div>
       </div>
 
-      {/* Drawing Canvas */}
       <canvas
         ref={canvasRef}
         onPointerDown={handlePointerDown}
@@ -695,9 +643,7 @@ export default function EnhancedAICalculator() {
         }}
       />
 
-      {/* Bottom Controls */}
       <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 flex gap-2 ${isMobile ? 'flex-col' : 'flex-row'}`}>
-        {/* Variables Input (Desktop) */}
         {!isMobile && (
           <input
             type="text"
@@ -712,7 +658,6 @@ export default function EnhancedAICalculator() {
           />
         )}
 
-        {/* Action Buttons */}
         <div className="flex gap-2">
           <button
             onClick={undoLastAction}
@@ -749,7 +694,6 @@ export default function EnhancedAICalculator() {
         </div>
       </div>
 
-      {/* Results Panel */}
       {(state.results.length > 0 || state.error) && (
         <div className={`absolute ${isMobile ? 'bottom-20 left-4 right-4' : 'top-32 right-4 w-96'} z-30 bg-black/80 backdrop-blur-xl border border-white/20 rounded-xl p-4 max-h-64 overflow-y-auto`}>
           {state.error ? (
@@ -763,7 +707,6 @@ export default function EnhancedAICalculator() {
                 <Calculator className="w-5 h-5" />
                 <h3 className="font-semibold">Results</h3>
               </div>
-              {/* Because state.results is now Result[], 'result' is correctly typed */}
               {state.results.map((result, index) => (
                 <div key={index} className="bg-white/5 rounded-lg p-3 border border-white/10">
                   <div className="text-lg font-mono text-cyan-300 mb-2">
@@ -778,7 +721,6 @@ export default function EnhancedAICalculator() {
                   {result.steps && result.steps.length > 0 && (
                     <div className="space-y-1 text-sm">
                       <div className="text-white/60 font-medium">Solution steps:</div>
-                      {/* FIX: Added types to map callback parameters */}
                       {result.steps.map((step: Step, stepIndex: number) => (
                         <div key={stepIndex} className="bg-white/5 rounded p-2">
                           <div className="text-white/80 text-xs mb-1">{step.explanation}</div>
@@ -794,7 +736,6 @@ export default function EnhancedAICalculator() {
         </div>
       )}
 
-      {/* History Panel */}
       {state.showHistory && (
         <div className="absolute top-20 left-4 z-30 bg-black/80 backdrop-blur-xl border border-white/20 rounded-xl p-4 w-80 max-h-96 overflow-y-auto">
           <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
@@ -805,7 +746,6 @@ export default function EnhancedAICalculator() {
             <p className="text-white/60 text-sm">No calculations yet</p>
           ) : (
             <div className="space-y-2">
-               {/* Because state.history is now HistoryEntry[], 'entry' is correctly typed */}
               {state.history.map((entry, index) => (
                 <div key={index} className="bg-white/5 rounded-lg p-3 border border-white/10">
                   <div className="text-xs text-white/60 mb-1">
@@ -826,7 +766,6 @@ export default function EnhancedAICalculator() {
         </div>
       )}
 
-      {/* Variable Display */}
       {Object.keys(state.dictOfVars).length > 0 && !isMobile && (
         <div className="absolute bottom-24 right-4 z-20 bg-black/40 backdrop-blur-xl border border-white/20 rounded-xl p-3 max-w-xs">
           <h4 className="text-white/80 text-sm font-medium mb-2 flex items-center gap-2">
@@ -843,7 +782,6 @@ export default function EnhancedAICalculator() {
         </div>
       )}
 
-      {/* Mobile floating action button */}
       {isMobile && (
         <button
           onClick={submitDrawing}
@@ -858,7 +796,6 @@ export default function EnhancedAICalculator() {
         </button>
       )}
 
-      {/* Performance indicator */}
       <div className="absolute top-4 right-4 z-50 text-xs text-white/40">
         {drawingState.undoStack.length > 0 && `${drawingState.undoStack.length}/10 saves`}
       </div>
