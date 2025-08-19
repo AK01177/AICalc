@@ -531,7 +531,6 @@ export default function Home() {
                                 data={SWATCHES.map(swatch => ({ 
                                     value: swatch, 
                                     label: `Color ${swatch}`,
-                                    color: swatch
                                 }))}
                                 value={color}
                                 onChange={(value) => setColor(value || 'rgb(255, 255, 255)')}
@@ -551,15 +550,6 @@ export default function Home() {
                                         backdropFilter: 'blur(10px)',
                                     }
                                 }}
-                                itemComponent={({ label, color: itemColor, ...others }) => (
-                                    <div {...others} className="flex items-center gap-2 p-2">
-                                        <div 
-                                            className="w-4 h-4 rounded border border-white/30" 
-                                            style={{ backgroundColor: itemColor }}
-                                        />
-                                        <span>{label}</span>
-                                    </div>
-                                )}
                             />
                         ) : (
                             <Group className="flex-wrap">
