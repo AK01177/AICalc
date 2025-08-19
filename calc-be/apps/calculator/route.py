@@ -8,7 +8,9 @@ from PIL import Image
 
 router = APIRouter()
 
-@router.post('')
+# Support both trailing and non-trailing slash
+@router.post("")
+@router.post("/")
 async def run(data: ImageData):
     try:
         # Validate input data
