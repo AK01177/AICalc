@@ -530,15 +530,8 @@ export default function Home() {
                             <Select
                                 data={SWATCHES.map(swatch => ({ 
                                     value: swatch, 
-                                    label: (
-                                        <div className="flex items-center gap-2">
-                                            <div 
-                                                className="w-4 h-4 rounded border border-white/30" 
-                                                style={{ backgroundColor: swatch }}
-                                            />
-                                            <span>Color</span>
-                                        </div>
-                                    )
+                                    label: `Color ${swatch}`,
+                                    color: swatch
                                 }))}
                                 value={color}
                                 onChange={(value) => setColor(value || 'rgb(255, 255, 255)')}
@@ -556,17 +549,17 @@ export default function Home() {
                                     dropdown: {
                                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
                                         backdropFilter: 'blur(10px)',
-                                    },
-                                    item: {
-                                        color: 'white',
-                                        '&[data-selected]': {
-                                            backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                                        },
-                                        '&:hover': {
-                                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                        }
                                     }
                                 }}
+                                itemComponent={({ label, color: itemColor, ...others }) => (
+                                    <div {...others} className="flex items-center gap-2 p-2">
+                                        <div 
+                                            className="w-4 h-4 rounded border border-white/30" 
+                                            style={{ backgroundColor: itemColor }}
+                                        />
+                                        <span>{label}</span>
+                                    </div>
+                                )}
                             />
                         ) : (
                             <Group className="flex-wrap">
