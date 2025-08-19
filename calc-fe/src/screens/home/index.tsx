@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Calculator, 
-  RefreshCw, 
-  Upload, 
-  Loader2, 
-  AlertCircle, 
-  Download, 
-  Save, 
+import {
+  Calculator,
+  RefreshCw,
+  Upload,
+  Loader2,
+  AlertCircle,
+  Download,
+  Save,
   Palette,
   Maximize2,
   Minimize2,
@@ -18,8 +18,57 @@ import {
   EyeOff
 } from 'lucide-react';
 
+// --- TYPE DEFINITIONS START ---
+// By defining the shapes of our data, we fix the "Property does not exist on type 'never'" errors.
+
+interface Step {
+  latex: string;
+  explanation: string;
+}
+
+interface Result {
+  expr: string;
+  result: string | number;
+  assign: boolean;
+  steps: Step[];
+}
+
+interface HistoryEntry {
+  timestamp: Date;
+  results: Result[];
+  subject: string;
+  variables: Record<string, string | number>;
+}
+
+interface CalculatorState {
+  color: string;
+  colorTheme: keyof typeof COLOR_THEMES; // Use keys of the theme object for type safety
+  dictOfVars: Record<string, string | number>;
+  results: Result[]; // Typed as an array of Result objects
+  history: HistoryEntry[]; // Typed as an array of HistoryEntry objects
+  loading: boolean;
+  error: string | null;
+  subject: string;
+  varInput: string;
+  isFullscreen: boolean;
+  showSettings: boolean;
+  showHistory: boolean;
+  brushSize: number;
+  smoothing: boolean;
+  autoSave: boolean;
+}
+
+interface DrawingState {
+  isDrawing: boolean;
+  lastPoint: { x: number; y: number } | null;
+  paths: any[]; // Kept as 'any' as it's not being used. Define if needed.
+  undoStack: string[];
+  redoStack: string[];
+}
+// --- TYPE DEFINITIONS END ---
+
 // Enhanced color palette with gradients and themes
-const COLOR_THEMES = {
+const COLOR_THEMES: Record<string, string[]> = {
   neon: ['#ff0080', '#00ff80', '#0080ff', '#ff8000', '#8000ff', '#ff0040'],
   pastel: ['#ffb3e6', '#b3ffe6', '#b3d9ff', '#ffe6b3', '#e6b3ff', '#ffccb3'],
   dark: ['#ffffff', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'],
@@ -54,10 +103,10 @@ const useMobileDetection = () => {
   return isMobile;
 };
 
-// Utility functions
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
+// Utility functions with added types
+const debounce = <F extends (...args: any[]) => any>(func: F, wait: number) => {
+  let timeout: ReturnType<typeof setTimeout>;
+  return function executedFunction(...args: Parameters<F>) {
     const later = () => {
       clearTimeout(timeout);
       func(...args);
@@ -67,27 +116,28 @@ const debounce = (func, wait) => {
   };
 };
 
-const throttle = (func, limit) => {
-  let inThrottle;
-  return function() {
-    const args = arguments;
+const throttle = <F extends (...args: any[]) => any>(func: F, limit: number) => {
+  let inThrottle: boolean;
+  return function(this: ThisParameterType<F>, ...args: Parameters<F>) {
     const context = this;
     if (!inThrottle) {
       func.apply(context, args);
       inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
+      setTimeout(() => (inThrottle = false), limit);
     }
-  }
+  };
 };
+
 
 // Enhanced Calculator Component
 export default function EnhancedAICalculator() {
-  const canvasRef = useRef(null);
-  const ctxRef = useRef(null);
+  // FIX: Added types for refs
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const isMobile = useMobileDetection();
   
-  // Enhanced state management
-  const [state, setState] = useState({
+  // FIX: Applied the CalculatorState interface to useState. This solves all 'never' type errors.
+  const [state, setState] = useState<CalculatorState>({
     color: '#00ff80',
     colorTheme: 'neon',
     dictOfVars: {},
@@ -105,8 +155,8 @@ export default function EnhancedAICalculator() {
     autoSave: true
   });
 
-  // Drawing state
-  const [drawingState, setDrawingState] = useState({
+  // FIX: Applied the DrawingState interface
+  const [drawingState, setDrawingState] = useState<DrawingState>({
     isDrawing: false,
     lastPoint: null,
     paths: [],
@@ -157,7 +207,7 @@ export default function EnhancedAICalculator() {
   }, [state.color, state.brushSize, state.smoothing]);
 
   // Enhanced drawing with pressure sensitivity simulation
-  const drawSmooth = useCallback(throttle((x, y, pressure = 1) => {
+  const drawSmooth = useCallback(throttle((x: number, y: number, pressure = 1) => {
     const ctx = ctxRef.current;
     if (!ctx || !drawingState.isDrawing) return;
 
@@ -189,14 +239,14 @@ export default function EnhancedAICalculator() {
     setDrawingState(prev => ({ ...prev, lastPoint: { x, y } }));
   }, 16), [state.brushSize, drawingState.isDrawing, drawingState.lastPoint]);
 
-  // Enhanced event handlers
-  const handlePointerDown = useCallback((e) => {
+  // Enhanced event handlers with event types
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = (e.clientX || e.touches?.[0]?.clientX) - rect.left;
-    const y = (e.clientY || e.touches?.[0]?.clientY) - rect.top;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     
     setDrawingState(prev => ({ 
       ...prev, 
@@ -212,15 +262,15 @@ export default function EnhancedAICalculator() {
     }
   }, []);
 
-  const handlePointerMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     if (!drawingState.isDrawing) return;
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = (e.clientX || e.touches?.[0]?.clientX) - rect.left;
-    const y = (e.clientY || e.touches?.[0]?.clientY) - rect.top;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     const pressure = e.pressure || 1;
 
     drawSmooth(x, y, pressure);
@@ -294,8 +344,8 @@ export default function EnhancedAICalculator() {
       // Simulate API call since we don't have the actual endpoint
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Mock response
-      const mockResults = [
+      // Mock response - This now matches our Result[] type
+      const mockResults: Result[] = [
         {
           expr: "2x + 3 = 11",
           result: "x = 4",
@@ -363,7 +413,7 @@ export default function EnhancedAICalculator() {
   }, [clearCanvas]);
 
   // Theme switching
-  const switchTheme = useCallback((theme) => {
+  const switchTheme = useCallback((theme: keyof typeof COLOR_THEMES) => {
     setState(prev => ({ 
       ...prev, 
       colorTheme: theme,
@@ -372,10 +422,10 @@ export default function EnhancedAICalculator() {
   }, []);
 
   // Variable handling
-  const updateVariable = useCallback((input) => {
+  const updateVariable = useCallback((input: string) => {
     try {
       const pairs = input.split(',').map(pair => pair.trim());
-      const newVars = {};
+      const newVars: Record<string, string | number> = {};
       
       pairs.forEach(pair => {
         if (pair.includes('=')) {
@@ -399,23 +449,21 @@ export default function EnhancedAICalculator() {
     
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    // Pointer events for better cross-device support
-    canvas.addEventListener('pointerdown', handlePointerDown);
-    canvas.addEventListener('pointermove', handlePointerMove);
-    canvas.addEventListener('pointerup', handlePointerUp);
-    canvas.addEventListener('pointerleave', handlePointerUp);
     
-    // Prevent context menu and scrolling
-    canvas.addEventListener('contextmenu', e => e.preventDefault());
-    canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-    canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+    const preventDefault = (e: Event) => e.preventDefault();
+    
+    // React's event system already handles these well, but if direct listeners are needed:
+    // We can use the already defined handlers. No need to redefine them.
+    // Note: React's onPointerDown etc. are often preferred over addEventListener in React components.
+    
+    canvas.addEventListener('contextmenu', preventDefault);
+    canvas.addEventListener('touchstart', preventDefault, { passive: false });
+    canvas.addEventListener('touchmove', preventDefault, { passive: false });
 
     return () => {
-      canvas.removeEventListener('pointerdown', handlePointerDown);
-      canvas.removeEventListener('pointermove', handlePointerMove);
-      canvas.removeEventListener('pointerup', handlePointerUp);
-      canvas.removeEventListener('pointerleave', handlePointerUp);
+      canvas.removeEventListener('contextmenu', preventDefault);
+      canvas.removeEventListener('touchstart', preventDefault);
+      canvas.removeEventListener('touchmove', preventDefault);
     };
   }, [handlePointerDown, handlePointerMove, handlePointerUp, setupCanvas]);
 
@@ -537,7 +585,7 @@ export default function EnhancedAICalculator() {
           <div className="mb-4">
             <label className="text-white/80 text-sm block mb-2">Color Theme</label>
             <div className="grid grid-cols-2 gap-2">
-              {Object.keys(COLOR_THEMES).map(theme => (
+              {(Object.keys(COLOR_THEMES) as Array<keyof typeof COLOR_THEMES>).map(theme => (
                 <button
                   key={theme}
                   onClick={() => switchTheme(theme)}
@@ -548,7 +596,8 @@ export default function EnhancedAICalculator() {
                   }`}
                 >
                   <div className="flex gap-1 mb-1">
-                    {COLOR_THEMES[theme].slice(0, 4).map((color, i) => (
+                    {/* FIX: Added types to map callback parameters */}
+                    {COLOR_THEMES[theme].slice(0, 4).map((color: string, i: number) => (
                       <div key={i} className="w-3 h-3 rounded" style={{ backgroundColor: color }}></div>
                     ))}
                   </div>
@@ -599,7 +648,8 @@ export default function EnhancedAICalculator() {
       <div className="absolute top-24 left-4 z-20">
         <div className="bg-black/40 backdrop-blur-xl border border-white/20 rounded-xl p-3">
           <div className="grid grid-cols-3 gap-2">
-            {currentColors.map((color, index) => (
+            {/* FIX: Added types to map callback parameters */}
+            {currentColors.map((color: string, index: number) => (
               <button
                 key={index}
                 onClick={() => setState(prev => ({ ...prev, color }))}
@@ -630,6 +680,10 @@ export default function EnhancedAICalculator() {
       {/* Drawing Canvas */}
       <canvas
         ref={canvasRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
         className={`absolute cursor-crosshair touch-none select-none ${
           isMobile ? 'top-0 left-0 w-full h-full' : 'top-0 left-0 w-full'
         }`}
@@ -709,6 +763,7 @@ export default function EnhancedAICalculator() {
                 <Calculator className="w-5 h-5" />
                 <h3 className="font-semibold">Results</h3>
               </div>
+              {/* Because state.results is now Result[], 'result' is correctly typed */}
               {state.results.map((result, index) => (
                 <div key={index} className="bg-white/5 rounded-lg p-3 border border-white/10">
                   <div className="text-lg font-mono text-cyan-300 mb-2">
@@ -723,7 +778,8 @@ export default function EnhancedAICalculator() {
                   {result.steps && result.steps.length > 0 && (
                     <div className="space-y-1 text-sm">
                       <div className="text-white/60 font-medium">Solution steps:</div>
-                      {result.steps.map((step, stepIndex) => (
+                      {/* FIX: Added types to map callback parameters */}
+                      {result.steps.map((step: Step, stepIndex: number) => (
                         <div key={stepIndex} className="bg-white/5 rounded p-2">
                           <div className="text-white/80 text-xs mb-1">{step.explanation}</div>
                           <div className="font-mono text-purple-300 text-xs">{step.latex}</div>
@@ -749,6 +805,7 @@ export default function EnhancedAICalculator() {
             <p className="text-white/60 text-sm">No calculations yet</p>
           ) : (
             <div className="space-y-2">
+               {/* Because state.history is now HistoryEntry[], 'entry' is correctly typed */}
               {state.history.map((entry, index) => (
                 <div key={index} className="bg-white/5 rounded-lg p-3 border border-white/10">
                   <div className="text-xs text-white/60 mb-1">
