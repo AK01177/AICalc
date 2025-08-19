@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Calculator,
   RefreshCw,
@@ -219,7 +219,8 @@ export default function EnhancedAICalculator() {
   }, 16), [state.brushSize, drawingState.isDrawing, drawingState.lastPoint]);
 
   // FINAL FIX: Use the native 'PointerEvent' type for the event parameter 'e'.
-  const handlePointerDown = useCallback((e: PointerEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Use React pointer event, keep behavior identical to previous native handler
     e.preventDefault();
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -234,6 +235,9 @@ export default function EnhancedAICalculator() {
       redoStack: []
     }));
 
+    const canvas = canvasRef.current;
+    try { canvas?.setPointerCapture(e.pointerId); } catch {}
+
     const ctx = ctxRef.current;
     if (ctx) {
       ctx.beginPath();
@@ -241,7 +245,7 @@ export default function EnhancedAICalculator() {
     }
   }, []);
 
-  const handlePointerMove = useCallback((e: PointerEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     if (!drawingState.isDrawing) return;
 
@@ -250,12 +254,12 @@ export default function EnhancedAICalculator() {
 
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const pressure = e.pressure || 1;
+    const pressure = (e.nativeEvent as PointerEvent).pressure || 1;
 
     drawSmooth(x, y, pressure);
   }, [drawingState.isDrawing, drawSmooth]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingState.isDrawing) return;
     
     setDrawingState(prev => ({ 
@@ -265,6 +269,8 @@ export default function EnhancedAICalculator() {
     }));
 
     const canvas = canvasRef.current;
+    try { if (e && canvas) canvas.releasePointerCapture(e.pointerId); } catch {}
+
     if (canvas && state.autoSave) {
       const imageData = canvas.toDataURL();
       setDrawingState(prev => ({
@@ -414,32 +420,11 @@ export default function EnhancedAICalculator() {
   }, []);
 
   useEffect(() => {
+    // Initialize canvas size and context. Pointer handlers are attached via
+    // React props on the <canvas> element to avoid ordering/overlay issues.
     setupCanvas();
-    
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    canvas.addEventListener('pointerdown', handlePointerDown);
-    canvas.addEventListener('pointermove', handlePointerMove);
-    canvas.addEventListener('pointerup', handlePointerUp);
-    canvas.addEventListener('pointerleave', handlePointerUp);
-    
-    const preventDefault = (e: Event) => e.preventDefault();
-    
-    canvas.addEventListener('contextmenu', preventDefault);
-    canvas.addEventListener('touchstart', preventDefault, { passive: false });
-    canvas.addEventListener('touchmove', preventDefault, { passive: false });
-
-    return () => {
-      canvas.removeEventListener('pointerdown', handlePointerDown);
-      canvas.removeEventListener('pointermove', handlePointerMove);
-      canvas.removeEventListener('pointerup', handlePointerUp);
-      canvas.removeEventListener('pointerleave', handlePointerUp);
-      canvas.removeEventListener('contextmenu', preventDefault);
-      canvas.removeEventListener('touchstart', preventDefault);
-      canvas.removeEventListener('touchmove', preventDefault);
-    };
-  }, [handlePointerDown, handlePointerMove, handlePointerUp, setupCanvas]);
+    // nothing else to clean up here
+  }, [setupCanvas]);
 
   useEffect(() => {
     updateCanvasStyle();
