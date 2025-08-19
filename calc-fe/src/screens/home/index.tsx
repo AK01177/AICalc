@@ -474,16 +474,14 @@ export default function Home() {
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 relative overflow-hidden">
             {/* Background decoration */}
             <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27 width=%2732%27 height=%2732%27 fill=%27none%27 stroke=%27rgb(148 163 184 / 0.05)%27%3e%3cpath d=%27m0 .5 32 32M32 .5 0 32%27/%3e%3c/svg%3e')] opacity-20"></div>
-            
+
             {/* Header Controls */}
-        </div>
-    );
             {isMobile ? (
-                <div className={"relative z-10 glass-panel mx-2 mt-2 p-2"}>
+                <div className="relative z-10 glass-panel mx-2 mt-2 p-2">
                     {/* Row 1: Subject, Color, Variables */}
                     <div className="grid grid-cols-3 gap-2">
                         <Select
-                            data={SUBJECTS.map(s => ({ value: s.value, label: s.label }))}
+                            data={SUBJECTS.map((s) => ({ value: s.value, label: s.label }))}
                             value={subject}
                             onChange={(value) => setSubject(value || 'math')}
                             className={'w-full'}
@@ -494,16 +492,16 @@ export default function Home() {
                                     color: 'white',
                                     fontSize: '0.75rem',
                                     padding: '0.375rem 0.5rem',
-                                    minHeight: '32px'
+                                    minHeight: '32px',
                                 },
                                 dropdown: {
                                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    backdropFilter: 'blur(10px)'
-                                }
+                                    backdropFilter: 'blur(10px)',
+                                },
                             }}
                         />
                         <Select
-                            data={SWATCHES.map(swatch => ({ value: swatch, label: 'Color' }))}
+                            data={SWATCHES.map((swatch) => ({ value: swatch, label: 'Color' }))}
                             value={color}
                             onChange={(value) => setColor(value || 'rgb(255, 255, 255)')}
                             className={'w-full'}
@@ -515,12 +513,12 @@ export default function Home() {
                                     color: 'white',
                                     fontSize: '0.75rem',
                                     padding: '0.375rem 0.5rem',
-                                    minHeight: '32px'
+                                    minHeight: '32px',
                                 },
                                 dropdown: {
                                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    backdropFilter: 'blur(10px)'
-                                }
+                                    backdropFilter: 'blur(10px)',
+                                },
                             }}
                         />
                         <input
@@ -570,7 +568,7 @@ export default function Home() {
                         </div>
                         <div className={`flex flex-wrap items-center gap-4`}>
                             <Select
-                                data={SUBJECTS.map(s => ({ value: s.value, label: s.label }))}
+                                data={SUBJECTS.map((s) => ({ value: s.value, label: s.label }))}
                                 value={subject}
                                 onChange={(value) => setSubject(value || 'math')}
                                 className={'w-40'}
@@ -578,12 +576,12 @@ export default function Home() {
                                     input: {
                                         backgroundColor: 'rgba(255, 255, 255, 0.1)',
                                         border: '1px solid rgba(255, 255, 255, 0.2)',
-                                        color: 'white'
+                                        color: 'white',
                                     },
                                     dropdown: {
                                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                        backdropFilter: 'blur(10px)'
-                                    }
+                                        backdropFilter: 'blur(10px)',
+                                    },
                                 }}
                             />
                             <input
@@ -632,34 +630,34 @@ export default function Home() {
                                 </Button>
                             </div>
                         </div>
-                        {/* Variables Display (desktop only kept larger) */}
-                        {Object.keys(dictOfVars).length > 0 && (
-                            <div className="mt-4 p-3 bg-black/20 rounded-lg">
-                                <h3 className="text-sm font-semibold text-white/80 mb-2">Variables:</h3>
-                                <div className="flex flex-wrap gap-2">
-                                    {Object.entries(dictOfVars).map(([key, value]) => (
-                                        <span key={key} className="px-2 py-1 bg-white/10 rounded text-sm text-white">
-                                            {key} = {String(value)}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                     </div>
-                )}
-                {/* Canvas - Mobile responsive positioning */}
-                <canvas
-                    ref={canvasRef}
+                    {/* Variables Display (desktop only kept larger) */}
+                    {Object.keys(dictOfVars).length > 0 && (
+                        <div className="mt-4 p-3 bg-black/20 rounded-lg">
+                            <h3 className="text-sm font-semibold text-white/80 mb-2">Variables:</h3>
+                            <div className="flex flex-wrap gap-2">
+                                {Object.entries(dictOfVars).map(([key, value]) => (
+                                    <span key={key} className="px-2 py-1 bg-white/10 rounded text-sm text-white">
+                                        {key} = {String(value)}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Canvas - Mobile responsive positioning */}
+            <canvas
+                ref={canvasRef}
                 className={`absolute cursor-crosshair touch-none select-none ${
-                    isMobile 
-                        ? 'top-0 left-0 w-full h-full' 
-                        : 'top-20 left-0 w-full'
+                    isMobile ? 'top-0 left-0 w-full h-full' : 'top-20 left-0 w-full'
                 }`}
-                style={{ 
+                style={{
                     height: isMobile ? '100vh' : 'calc(100vh - 100px)',
                     imageRendering: 'pixelated',
                     touchAction: 'none',
-                    zIndex: isMobile ? 1 : 'auto'
+                    zIndex: isMobile ? 1 : 'auto',
                 }}
             />
 
@@ -684,9 +682,7 @@ export default function Home() {
                                             {result.expr} = {String(result.result)}
                                         </div>
                                         {result.assign && (
-                                            <div className="text-xs text-green-300 mt-1">
-                                                Variable assigned
-                                            </div>
+                                            <div className="text-xs text-green-300 mt-1">Variable assigned</div>
                                         )}
                                         {result.steps && result.steps.length > 0 && (
                                             <div className="mt-2 space-y-1">
@@ -723,9 +719,7 @@ export default function Home() {
                                                 {result.expr} = {String(result.result)}
                                             </div>
                                             {result.assign && (
-                                                <div className="text-sm text-green-300 mt-1">
-                                                    Variable assigned
-                                                </div>
+                                                <div className="text-sm text-green-300 mt-1">Variable assigned</div>
                                             )}
                                             {result.steps && result.steps.length > 0 && (
                                                 <div className="mt-2 space-y-1">
