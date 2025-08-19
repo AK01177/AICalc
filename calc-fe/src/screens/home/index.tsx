@@ -692,28 +692,28 @@ export default function Home() {
                                 <Calculator className="w-5 h-5" />
                                 <h3 className="font-semibold">Results</h3>
                             </div>
-                            {results.map((result, index) => (
-                                <div key={index} className="bg-black/20 rounded-lg p-3">
-                                    <div className="text-lg font-mono text-white">
-                                        {result.expr} = {String(result.result)}
-                                    </div>
-                                    {result.assign && (
-                                        <div className="text-sm text-green-300 mt-1">
-                                            Variable assigned
-                                        </div>
-                                    )}
-                                    {result.steps && result.steps.length > 0 && (
-                                        <div className="mt-2 space-y-1">
-                                            {result.steps.map((step, stepIndex) => (
-                                                <div key={stepIndex} className="text-sm text-white/80">
-                                                    <div className="font-medium">{step.explanation}</div>
-                                                    <div className="font-mono text-white/60">{step.latex}</div>
+                                            {results.map((result: Response, index: number) => (
+                                                <div key={index} className="bg-black/20 rounded-lg p-3">
+                                                    <div className="text-lg font-mono text-white">
+                                                        {result.expr} = {String(result.result)}
+                                                    </div>
+                                                    {result.assign && (
+                                                        <div className="text-sm text-green-300 mt-1">
+                                                            Variable assigned
+                                                        </div>
+                                                    )}
+                                                    {result.steps && result.steps.length > 0 && (
+                                                        <div className="mt-2 space-y-1">
+                                                            {result.steps.map((step: Step, stepIndex: number) => (
+                                                                <div key={stepIndex} className="text-sm text-white/80">
+                                                                    <div className="font-medium">{step.explanation}</div>
+                                                                    <div className="font-mono text-white/60">{step.latex}</div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
                         </div>
                     )}
                 </div>
