@@ -633,41 +633,33 @@ export default function Home() {
 
             {/* Results Panel - Mobile responsive */}
             {(results.length > 0 || error) && (
-                <Draggable 
-                    defaultPosition={latexPosition}
-                    disabled={isMobile} // Disable dragging on mobile
-                    bounds={isMobile ? "parent" : undefined} // Constrain to parent on mobile
-                >
-                    <div className={`absolute glass-panel p-6 overflow-y-auto ${
-                        isMobile 
-                            ? 'bottom-4 left-4 right-4 max-h-64 z-20' 
-                            : 'max-w-md max-h-96'
-                    }`}>
+                isMobile ? (
+                    <div className={`fixed glass-panel p-4 overflow-y-auto bottom-4 left-4 right-4 z-30 max-h-64`}>
                         {error ? (
                             <div className="flex items-center gap-2 text-red-300">
                                 <AlertCircle className="w-5 h-5" />
                                 <span>{error}</span>
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-white">
                                     <Calculator className="w-5 h-5" />
                                     <h3 className="font-semibold">Results</h3>
                                 </div>
                                 {results.map((result, index) => (
                                     <div key={index} className="solution-step">
-                                        <div className="text-lg font-mono text-white">
+                                        <div className="text-base font-mono text-white">
                                             {result.expr} = {String(result.result)}
                                         </div>
                                         {result.assign && (
-                                            <div className="text-sm text-green-300 mt-1">
+                                            <div className="text-xs text-green-300 mt-1">
                                                 Variable assigned
                                             </div>
                                         )}
                                         {result.steps && result.steps.length > 0 && (
                                             <div className="mt-2 space-y-1">
                                                 {result.steps.map((step, stepIndex) => (
-                                                    <div key={stepIndex} className="text-sm text-white/80">
+                                                    <div key={stepIndex} className="text-xs text-white/80">
                                                         <div className="font-medium">{step.explanation}</div>
                                                         <div className="font-mono text-white/60">{step.latex}</div>
                                                     </div>
@@ -679,7 +671,47 @@ export default function Home() {
                             </div>
                         )}
                     </div>
-                </Draggable>
+                ) : (
+                    <Draggable defaultPosition={latexPosition}>
+                        <div className="absolute glass-panel p-6 max-w-md max-h-96 overflow-y-auto">
+                            {error ? (
+                                <div className="flex items-center gap-2 text-red-300">
+                                    <AlertCircle className="w-5 h-5" />
+                                    <span>{error}</span>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 text-white">
+                                        <Calculator className="w-5 h-5" />
+                                        <h3 className="font-semibold">Results</h3>
+                                    </div>
+                                    {results.map((result, index) => (
+                                        <div key={index} className="solution-step">
+                                            <div className="text-lg font-mono text-white">
+                                                {result.expr} = {String(result.result)}
+                                            </div>
+                                            {result.assign && (
+                                                <div className="text-sm text-green-300 mt-1">
+                                                    Variable assigned
+                                                </div>
+                                            )}
+                                            {result.steps && result.steps.length > 0 && (
+                                                <div className="mt-2 space-y-1">
+                                                    {result.steps.map((step, stepIndex) => (
+                                                        <div key={stepIndex} className="text-sm text-white/80">
+                                                            <div className="font-medium">{step.explanation}</div>
+                                                            <div className="font-mono text-white/60">{step.latex}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </Draggable>
+                )
             )}
         </div>
     );
