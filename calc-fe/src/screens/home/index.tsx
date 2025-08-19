@@ -24,8 +24,35 @@ interface ApiResponse {
     status: 'success' | 'error' | 'warning';
 }
 
+// Custom hook for mobile detection
+const useMobileDetection = () => {
+    const [isMobile, setIsMobile] = useState(false);
+    const [isPortrait, setIsPortrait] = useState(false);
+
+    useEffect(() => {
+        const checkDevice = () => {
+            const mobile = window.innerWidth <= 768;
+            const portrait = window.innerHeight > window.innerWidth;
+            setIsMobile(mobile);
+            setIsPortrait(portrait);
+        };
+        
+        checkDevice();
+        window.addEventListener('resize', checkDevice);
+        window.addEventListener('orientationchange', checkDevice);
+        
+        return () => {
+            window.removeEventListener('resize', checkDevice);
+            window.removeEventListener('orientationchange', checkDevice);
+        };
+    }, []);
+
+    return { isMobile, isPortrait };
+};
+
 export default function Home() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const { isMobile, isPortrait } = useMobileDetection();
 
     const [color, setColor] = useState('rgb(255, 255, 255)');
     const colorRef = useRef<string>('rgb(255, 255, 255)');
@@ -97,7 +124,7 @@ export default function Home() {
         
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
-        ctx.lineWidth = 3; // Slightly thicker for mobile
+        ctx.lineWidth = isMobile ? 4 : 3; // Thicker for mobile
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.strokeStyle = colorRef.current;
@@ -107,7 +134,7 @@ export default function Home() {
         ctx.fillRect(0, 0, rect.width, rect.height);
 
         ctxRef.current = ctx;
-    }, []);
+    }, [isMobile]);
 
     // Keep stroke color in sync without reinitializing the canvas
     useEffect(() => {
@@ -138,7 +165,7 @@ export default function Home() {
                     ctx.fillStyle = 'black';
                     ctx.fillRect(0, 0, rect.width, rect.height);
 
-                    ctx.lineWidth = 3;
+                    ctx.lineWidth = isMobile ? 4 : 3;
                     ctx.lineCap = 'round';
                     ctx.lineJoin = 'round';
                     ctx.strokeStyle = colorRef.current;
@@ -162,7 +189,7 @@ export default function Home() {
             window.removeEventListener('resize', debouncedResize);
             window.removeEventListener('orientationchange', debouncedResize);
         };
-    }, []);
+    }, [isMobile]);
 
     // Canvas functions
     const resetCanvas = useCallback(() => {
@@ -452,22 +479,22 @@ export default function Home() {
             <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27 width=%2732%27 height=%2732%27 fill=%27none%27 stroke=%27rgb(148 163 184 / 0.05)%27%3e%3cpath d=%27m0 .5 32 32M32 .5 0 32%27/%3e%3c/svg%3e')] opacity-20"></div>
             
             {/* Header Controls */}
-            <div className="relative z-10 p-4 glass-panel mx-4 mt-4 mb-2">
-                <div className="flex flex-wrap items-center gap-4 justify-between">
-                    <div className="flex items-center gap-4">
+            <div className={`relative z-10 p-4 glass-panel mx-4 mt-4 mb-2 ${isMobile ? 'mb-4' : 'mb-2'}`}>
+                <div className={`flex flex-wrap items-center gap-4 justify-between ${isMobile ? 'flex-col items-stretch' : ''}`}>
+                    <div className="flex items-center gap-4 justify-center">
                         <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">
                             A
                         </div>
-                        <h1 className="text-xl font-bold text-white">Aryan's AI Calculator</h1>
+                        <h1 className={`font-bold text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>Aryan's AI Calculator</h1>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-4">
+                    <div className={`flex flex-wrap items-center gap-4 ${isMobile ? 'flex-col items-stretch justify-center' : ''}`}>
                         {/* Subject Selection */}
                         <Select
                             data={SUBJECTS.map(s => ({ value: s.value, label: s.label }))}
                             value={subject}
                             onChange={(value) => setSubject(value || 'math')}
-                            className="w-40"
+                            className={isMobile ? 'w-full' : 'w-40'}
                             styles={{
                                 input: {
                                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -490,11 +517,11 @@ export default function Home() {
                                 setVarInput(e.target.value);
                                 handleVariableInput(e.target.value);
                             }}
-                            className="glass-input w-48"
+                            className={`glass-input ${isMobile ? 'w-full' : 'w-48'}`}
                         />
                         
                         {/* Color Palette */}
-                        <Group className="flex-wrap">
+                        <Group className={`flex-wrap ${isMobile ? 'justify-center' : ''}`}>
                             {SWATCHES.map((swatch) => (
                                 <ColorSwatch
                                     key={swatch}
@@ -503,33 +530,35 @@ export default function Home() {
                                     className={`cursor-pointer transition-all duration-200 ${
                                         color === swatch ? 'ring-2 ring-white scale-110' : 'hover:scale-105'
                                     }`}
-                                    size={24}
+                                    size={isMobile ? 28 : 24}
                                 />
                             ))}
                         </Group>
                         
                         {/* Action Buttons */}
-                        <Button
-                            onClick={handleReset}
-                            variant="outline"
-                            className="glass-button border-red-400/30 hover:border-red-400/50 text-red-300"
-                        >
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Reset
-                        </Button>
-                        
-                        <Button
-                            onClick={submitDrawing}
-                            disabled={loading}
-                            className="glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30"
-                        >
-                            {loading ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <Upload className="w-4 h-4 mr-2" />
-                            )}
-                            {loading ? 'Processing...' : 'Calculate'}
-                        </Button>
+                        <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
+                            <Button
+                                onClick={handleReset}
+                                variant="outline"
+                                className="glass-button border-red-400/30 hover:border-red-400/50 text-red-300"
+                            >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Reset
+                            </Button>
+                            
+                            <Button
+                                onClick={submitDrawing}
+                                disabled={loading}
+                                className="glass-button bg-green-600/20 hover:bg-green-600/30 border-green-400/30"
+                            >
+                                {loading ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Upload className="w-4 h-4 mr-2" />
+                                )}
+                                {loading ? 'Processing...' : 'Calculate'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
                 
@@ -548,21 +577,34 @@ export default function Home() {
                 )}
             </div>
 
-            {/* Canvas */}
+            {/* Canvas - Mobile responsive positioning */}
             <canvas
                 ref={canvasRef}
-                className="absolute top-20 left-0 w-full cursor-crosshair touch-none select-none"
+                className={`absolute cursor-crosshair touch-none select-none ${
+                    isMobile 
+                        ? 'top-0 left-0 w-full h-full' 
+                        : 'top-20 left-0 w-full'
+                }`}
                 style={{ 
-                    height: 'calc(100vh - 100px)',
+                    height: isMobile ? '100vh' : 'calc(100vh - 100px)',
                     imageRendering: 'pixelated',
-                    touchAction: 'none'
+                    touchAction: 'none',
+                    zIndex: isMobile ? 1 : 'auto'
                 }}
             />
 
-            {/* Results Panel */}
+            {/* Results Panel - Mobile responsive */}
             {(results.length > 0 || error) && (
-                <Draggable defaultPosition={latexPosition}>
-                    <div className="absolute glass-panel p-6 max-w-md max-h-96 overflow-y-auto">
+                <Draggable 
+                    defaultPosition={latexPosition}
+                    disabled={isMobile} // Disable dragging on mobile
+                    bounds={isMobile ? "parent" : undefined} // Constrain to parent on mobile
+                >
+                    <div className={`absolute glass-panel p-6 overflow-y-auto ${
+                        isMobile 
+                            ? 'bottom-4 left-4 right-4 max-h-64 z-20' 
+                            : 'max-w-md max-h-96'
+                    }`}>
                         {error ? (
                             <div className="flex items-center gap-2 text-red-300">
                                 <AlertCircle className="w-5 h-5" />
@@ -600,6 +642,16 @@ export default function Home() {
                         )}
                     </div>
                 </Draggable>
+            )}
+
+            {/* Mobile Drawing Instructions */}
+            {isMobile && (
+                <div className="absolute top-4 right-4 z-30 glass-panel p-3 text-xs text-white/80 max-w-32">
+                    <div className="text-center">
+                        <div className="font-semibold mb-1">Draw here</div>
+                        <div className="text-white/60">Use your finger to draw mathematical expressions</div>
+                    </div>
+                </div>
             )}
         </div>
     );

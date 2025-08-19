@@ -204,6 +204,86 @@
     min-height: 44px;
     min-width: 44px;
   }
+
+  /* Mobile-specific canvas improvements */
+  canvas {
+    touch-action: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -khtml-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+  }
+
+  /* Mobile header adjustments */
+  .glass-panel {
+    margin: 0.5rem;
+    padding: 1rem;
+  }
+
+  /* Mobile button improvements */
+  .glass-button {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    min-height: 48px;
+  }
+
+  /* Mobile input improvements */
+  .glass-input {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    min-height: 48px;
+  }
+
+  /* Mobile results panel */
+  .solution-step {
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Prevent horizontal scrolling on mobile */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Mobile-friendly spacing */
+  .gap-4 {
+    gap: 0.75rem;
+  }
+
+  /* Mobile canvas positioning */
+  canvas[style*="top: 0"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 1 !important;
+  }
+}
+
+/* Desktop-specific styles (preserve original desktop experience) */
+@media (min-width: 769px) {
+  .glass-panel {
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+
+  .glass-button {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .glass-input {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  canvas {
+    top: 5rem !important;
+    height: calc(100vh - 100px) !important;
+  }
 }
 
 @layer base {
