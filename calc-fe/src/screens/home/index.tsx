@@ -326,7 +326,8 @@ export default function EnhancedAICalculator() {
       // Build endpoint: use Vite env VITE_API_BASE if provided, else dev proxy
       const envBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
       const apiBase = (envBase ? String(envBase) : '').replace(/\/$/, '');
-      const endpoint = apiBase ? `${apiBase}/calculate` : '/api/calculate';
+      const primaryEndpoint = apiBase ? `${apiBase}/calculate` : '/api/calculate';
+      const fallbackEndpoints = [primaryEndpoint, 'http://localhost:8900/calculate'];
 
       // Prepare JSON payload with base64 image and metadata
       const dataUrl = canvas.toDataURL('image/png');
@@ -336,17 +337,36 @@ export default function EnhancedAICalculator() {
         subject: state.subject
       };
 
-      const resp = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!resp.ok) {
-        throw new Error(`Request failed with status ${resp.status}`);
+      let json: any = null;
+      let lastError: unknown = null;
+      for (const ep of fallbackEndpoints) {
+        try {
+          console.info('Submitting to endpoint:', ep);
+          const resp = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!resp.ok) {
+            let serverMsg = '';
+            try {
+              const text = await resp.text();
+              serverMsg = text?.slice(0, 200);
+              console.warn('Server error body snippet:', serverMsg);
+            } catch {}
+            throw new Error(`Request failed (${resp.status} ${resp.statusText}) ${serverMsg ? '- ' + serverMsg : ''}`);
+          }
+          json = await resp.json();
+          break;
+        } catch (err) {
+          lastError = err;
+          console.warn('Endpoint failed, trying next if available:', ep, err);
+        }
       }
 
-      const json = await resp.json();
+      if (!json) {
+        throw lastError || new Error('All endpoints failed');
+      }
       const resultsFromServer: Result[] | null = Array.isArray(json)
         ? (json as Result[])
         : (Array.isArray(json?.data)
@@ -374,9 +394,16 @@ export default function EnhancedAICalculator() {
 
     } catch (error) {
       console.warn('Failed to process calculation:', error);
+      try {
+        // Quick health check to help diagnose connectivity vs. payload issues
+        const health = await fetch('/api/');
+        console.info('Backend health check status:', health.status);
+      } catch (e) {
+        console.warn('Backend health check failed:', e);
+      }
       setState(prev => ({ 
         ...prev, 
-        error: 'Failed to process calculation. Please check your backend and try again.',
+        error: error instanceof Error ? error.message : 'Failed to process calculation. Please check your backend and try again.',
         loading: false 
       }));
     }
