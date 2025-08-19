@@ -41,6 +41,30 @@ interface ApiResponse {
     status: 'success' | 'error' | 'warning';
 }
 
+// Component prop types
+interface ColorSwatchProps {
+    color: string;
+    isSelected: boolean;
+    onClick: (color: string) => void;
+    size?: number;
+}
+
+interface SelectProps {
+    options: Array<{ value: string; label: string }>;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    className?: string;
+}
+
+interface ButtonProps {
+    children: React.ReactNode;
+    onClick: () => void;
+    disabled?: boolean;
+    variant?: 'default' | 'outline' | 'success';
+    className?: string;
+}
+
 // Custom hook for mobile detection
 const useMobileDetection = () => {
     const [isMobile, setIsMobile] = useState(false);
@@ -65,7 +89,7 @@ const useMobileDetection = () => {
 };
 
 // ColorSwatch Component
-const ColorSwatch = ({ color, isSelected, onClick, size = 24 }) => (
+const ColorSwatch: React.FC<ColorSwatchProps> = ({ color, isSelected, onClick, size = 24 }) => (
     <div
         className={`cursor-pointer transition-all duration-200 rounded-full border-2 ${
             isSelected ? 'ring-2 ring-white scale-110 border-white' : 'border-gray-400 hover:scale-105'
@@ -82,7 +106,7 @@ const ColorSwatch = ({ color, isSelected, onClick, size = 24 }) => (
 );
 
 // Select Component
-const Select = ({ options, value, onChange, placeholder, className = '' }) => (
+const Select: React.FC<SelectProps> = ({ options, value, onChange, placeholder, className = '' }) => (
     <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -98,7 +122,7 @@ const Select = ({ options, value, onChange, placeholder, className = '' }) => (
 );
 
 // Button Component
-const Button = ({ children, onClick, disabled = false, variant = 'default', className = '', ...props }) => {
+const Button: React.FC<ButtonProps> = ({ children, onClick, disabled = false, variant = 'default', className = '', ...props }) => {
     const baseClasses = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed";
     const variantClasses = {
         default: "bg-blue-600/20 hover:bg-blue-600/30 border border-blue-400/30 text-blue-300",
@@ -119,25 +143,25 @@ const Button = ({ children, onClick, disabled = false, variant = 'default', clas
 };
 
 export default function Home() {
-    const canvasRef = useRef(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const { isMobile } = useMobileDetection();
 
     // State
-    const [color, setColor] = useState('rgb(255, 255, 255)');
-    const [dictOfVars, setDictOfVars] = useState({});
-    const [results, setResults] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [subject, setSubject] = useState('math');
-    const [varInput, setVarInput] = useState('');
-    const [showControls, setShowControls] = useState(!isMobile);
+    const [color, setColor] = useState<string>('rgb(255, 255, 255)');
+    const [dictOfVars, setDictOfVars] = useState<Record<string, number | string>>({});
+    const [results, setResults] = useState<Response[]>([]);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+    const [subject, setSubject] = useState<string>('math');
+    const [varInput, setVarInput] = useState<string>('');
+    const [showControls, setShowControls] = useState<boolean>(!isMobile);
 
     // Drawing state refs
-    const colorRef = useRef('rgb(255, 255, 255)');
-    const ctxRef = useRef(null);
-    const isDrawingRef = useRef(false);
-    const rectRef = useRef(null);
-    const lastPointRef = useRef(null);
+    const colorRef = useRef<string>('rgb(255, 255, 255)');
+    const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+    const isDrawingRef = useRef<boolean>(false);
+    const rectRef = useRef<DOMRect | null>(null);
+    const lastPointRef = useRef<{ x: number; y: number } | null>(null);
 
     // Keep color in sync
     useEffect(() => {
@@ -236,7 +260,7 @@ export default function Home() {
         ctx.fillRect(0, 0, rect.width, rect.height);
     }, []);
 
-    const smoothLine = useCallback((ctx, x, y) => {
+    const smoothLine = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
         const lastPoint = lastPointRef.current;
         
         if (!lastPoint) {
@@ -266,7 +290,7 @@ export default function Home() {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const getPos = (clientX, clientY) => {
+        const getPos = (clientX: number, clientY: number) => {
             const rect = rectRef.current || canvas.getBoundingClientRect();
             return { 
                 x: (clientX - rect.left), 
@@ -274,7 +298,7 @@ export default function Home() {
             };
         };
 
-        const startDrawing = (x, y) => {
+        const startDrawing = (x: number, y: number) => {
             const ctx = ctxRef.current;
             if (!ctx) return;
 
@@ -289,7 +313,7 @@ export default function Home() {
             lastPointRef.current = { x, y };
         };
 
-        const continueDrawing = (x, y) => {
+        const continueDrawing = (x: number, y: number) => {
             if (!isDrawingRef.current || !ctxRef.current) return;
             smoothLine(ctxRef.current, x, y);
         };
@@ -307,26 +331,26 @@ export default function Home() {
         };
 
         // Mouse events
-        const handleMouseDown = (e) => {
+        const handleMouseDown = (e: MouseEvent) => {
             e.preventDefault();
             const pos = getPos(e.clientX, e.clientY);
             startDrawing(pos.x, pos.y);
         };
 
-        const handleMouseMove = (e) => {
+        const handleMouseMove = (e: MouseEvent) => {
             if (!isDrawingRef.current) return;
             e.preventDefault();
             const pos = getPos(e.clientX, e.clientY);
             continueDrawing(pos.x, pos.y);
         };
 
-        const handleMouseUp = (e) => {
+        const handleMouseUp = (e: MouseEvent) => {
             e.preventDefault();
             stopDrawing();
         };
 
         // Touch events
-        const handleTouchStart = (e) => {
+        const handleTouchStart = (e: TouchEvent) => {
             e.preventDefault();
             if (e.touches.length === 1) {
                 const touch = e.touches[0];
@@ -335,7 +359,7 @@ export default function Home() {
             }
         };
 
-        const handleTouchMove = (e) => {
+        const handleTouchMove = (e: TouchEvent) => {
             if (!isDrawingRef.current || e.touches.length !== 1) return;
             e.preventDefault();
             
@@ -344,7 +368,7 @@ export default function Home() {
             continueDrawing(pos.x, pos.y);
         };
 
-        const handleTouchEnd = (e) => {
+        const handleTouchEnd = (e: TouchEvent) => {
             e.preventDefault();
             stopDrawing();
         };
@@ -390,7 +414,7 @@ export default function Home() {
             await new Promise(resolve => setTimeout(resolve, 2000));
             
             // Simulate a successful response
-            const mockResults = [
+            const mockResults: Response[] = [
                 {
                     expr: "2 + 3",
                     result: 5,
@@ -413,14 +437,14 @@ export default function Home() {
     }, [dictOfVars, subject]);
 
     // Variable input handling
-    const handleVariableInput = useCallback((input) => {
+    const handleVariableInput = useCallback((input: string) => {
         try {
-            const pairs = input.split(',').map(pair => pair.trim());
-            const newVars = {};
+            const pairs = input.split(',').map((pair: string) => pair.trim());
+            const newVars: Record<string, number | string> = {};
             
-            pairs.forEach(pair => {
+            pairs.forEach((pair: string) => {
                 if (pair.includes('=')) {
-                    const [key, value] = pair.split('=').map(s => s.trim());
+                    const [key, value] = pair.split('=').map((s: string) => s.trim());
                     if (key && value) {
                         const numValue = parseFloat(value);
                         newVars[key] = isNaN(numValue) ? value : numValue;
