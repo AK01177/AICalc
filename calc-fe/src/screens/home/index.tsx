@@ -327,7 +327,7 @@ export default function EnhancedAICalculator() {
       const envBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
       const apiBase = (envBase ? String(envBase) : '').replace(/\/$/, '');
       const primaryEndpoint = apiBase ? `${apiBase}/calculate` : '/api/calculate';
-      const fallbackEndpoints = [primaryEndpoint, 'http://localhost:8900/calculate'];
+      const fallbackEndpoints = [primaryEndpoint, 'https://aicalc-nvif.onrender.com/calculate'];
 
       // Prepare JSON payload with base64 image and metadata
       const dataUrl = canvas.toDataURL('image/png');
