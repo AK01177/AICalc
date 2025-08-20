@@ -65,7 +65,7 @@ def analyze_image(img: Image, dict_of_vars: dict = None, subject: str = "math") 
         List of dictionaries containing solutions
     """
     # Initialize Gemini model
-    model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+    model = genai.GenerativeModel(model_name="gemini-2.5-pro")
     dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False) if dict_of_vars else "{}"
     
     # Base prompt for all subjects
@@ -268,3 +268,4 @@ def analyze_image(img: Image, dict_of_vars: dict = None, subject: str = "math") 
             "result": str(e),
             "assign": False
         }]
+
