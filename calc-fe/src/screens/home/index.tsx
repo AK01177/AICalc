@@ -120,6 +120,7 @@ export default function EnhancedAICalculator() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const isMobile = useMobileDetection();
+  const activePointerTypeRef = useRef<'mouse' | 'touch' | 'pen' | null>(null);
   
   const [state, setState] = useState<CalculatorState>({
     color: '#00ff80',
@@ -135,7 +136,7 @@ export default function EnhancedAICalculator() {
     showSettings: false,
     showHistory: false,
     brushSize: isMobile ? 4 : 3,
-    smoothing: true,
+    smoothing: !isMobile,
     autoSave: true
   });
 
@@ -182,10 +183,8 @@ export default function EnhancedAICalculator() {
     ctx.strokeStyle = state.color;
     ctx.lineWidth = state.brushSize;
     ctx.globalCompositeOperation = 'source-over';
-    if (state.smoothing) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-    }
+    ctx.imageSmoothingEnabled = !!state.smoothing;
+    ctx.imageSmoothingQuality = state.smoothing ? 'high' : 'low';
   }, [state.color, state.brushSize, state.smoothing]);
 
   const drawSmooth = useCallback(throttle((x: number, y: number, pressure = 1) => {
@@ -218,10 +217,31 @@ export default function EnhancedAICalculator() {
     setDrawingState(prev => ({ ...prev, lastPoint: { x, y } }));
   }, 16), [state.brushSize, drawingState.isDrawing, drawingState.lastPoint]);
 
+  const drawRaw = useCallback(throttle((x: number, y: number) => {
+    const ctx = ctxRef.current;
+    if (!ctx || !drawingState.isDrawing) return;
+
+    const { lastPoint } = drawingState;
+
+    if (!lastPoint) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      setDrawingState(prev => ({ ...prev, lastPoint: { x, y } }));
+      return;
+    }
+
+    ctx.lineWidth = state.brushSize;
+    ctx.lineTo(x, y);
+    ctx.stroke();
+
+    setDrawingState(prev => ({ ...prev, lastPoint: { x, y } }));
+  }, 0), [state.brushSize, drawingState.isDrawing, drawingState.lastPoint]);
+
   // FINAL FIX: Use the native 'PointerEvent' type for the event parameter 'e'.
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     // Use React pointer event, keep behavior identical to previous native handler
     e.preventDefault();
+    activePointerTypeRef.current = (e.nativeEvent as PointerEvent).pointerType as 'mouse' | 'touch' | 'pen';
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -256,8 +276,14 @@ export default function EnhancedAICalculator() {
     const y = e.clientY - rect.top;
     const pressure = (e.nativeEvent as PointerEvent).pressure || 1;
 
-    drawSmooth(x, y, pressure);
-  }, [drawingState.isDrawing, drawSmooth]);
+    const pointerType = activePointerTypeRef.current;
+    if (pointerType === 'mouse') {
+      drawSmooth(x, y, pressure);
+    } else {
+      // For touch and pen, draw raw lines without additional smoothing/curves
+      drawRaw(x, y);
+    }
+  }, [drawingState.isDrawing, drawSmooth, drawRaw]);
 
   const handlePointerUp = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingState.isDrawing) return;
@@ -476,7 +502,39 @@ export default function EnhancedAICalculator() {
     updateCanvasStyle();
   }, [updateCanvasStyle]);
 
+  // Keep canvas crisp and aligned across very large displays and orientation changes
+  useEffect(() => {
+    const onResize = debounce(() => {
+      const canvas = canvasRef.current;
+      const ctx = ctxRef.current;
+      if (!canvas || !ctx) return;
+
+      // Save current bitmap
+      const prev = canvas.toDataURL('image/png');
+
+      // Re-setup canvas to new size
+      setupCanvas();
+
+      // Restore scaled bitmap to match new size
+      const img = new Image();
+      img.onload = () => {
+        const rect = canvas.getBoundingClientRect();
+        ctx.drawImage(img, 0, 0, rect.width, rect.height);
+      };
+      img.src = prev;
+    }, 150);
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize as any);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize as any);
+    };
+  }, [setupCanvas]);
+
   const currentColors = useMemo(() => COLOR_THEMES[state.colorTheme], [state.colorTheme]);
+
+  const modelName = ((import.meta as any)?.env?.VITE_MODEL_NAME as string) || 'Gemini 2.5 Pro';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
@@ -516,6 +574,11 @@ export default function EnhancedAICalculator() {
                 </option>
               ))}
             </select>
+
+            <div className="hidden sm:flex items-center gap-2 px-2 py-1 rounded-md border border-white/10 bg-white/5 text-white/70 text-xs">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />
+              {modelName}
+            </div>
 
             <div className="flex gap-1">
               <button
@@ -837,8 +900,14 @@ export default function EnhancedAICalculator() {
         </button>
       )}
 
-      <div className="absolute top-4 right-4 z-50 text-xs text-white/40">
-        {drawingState.undoStack.length > 0 && `${drawingState.undoStack.length}/10 saves`}
+      <div className="absolute top-4 right-4 z-50 flex flex-col items-end gap-2">
+        <div className="sm:hidden inline-flex items-center gap-2 px-2 py-1 rounded-md border border-white/10 bg-white/5 text-white/70 text-xs">
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />
+          {modelName}
+        </div>
+        <div className="text-xs text-white/40">
+          {drawingState.undoStack.length > 0 && `${drawingState.undoStack.length}/10 saves`}
+        </div>
       </div>
     </div>
   );
