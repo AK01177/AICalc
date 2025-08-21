@@ -28,3 +28,8 @@ idna==3.8
 certifi==2024.8.30
 charset-normalizer==3.3.2
 urllib3==2.2.2
+
+# Numerical, symbolic, and units
+numpy==2.0.2
+sympy==1.13.2
+pint==0.24.4

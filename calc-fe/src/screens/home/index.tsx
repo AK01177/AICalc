@@ -9,7 +9,8 @@ import {
   History,
   Settings,
   Zap,
-  Brain
+  Brain,
+  LineChart
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS ---
@@ -23,6 +24,12 @@ interface Result {
   result: string | number;
   assign: boolean;
   steps: Step[];
+}
+
+interface PlotData {
+  x: number[];
+  y: number[];
+  latex?: string;
 }
 
 interface HistoryEntry {
@@ -48,6 +55,14 @@ interface CalculatorState {
   brushSize: number;
   smoothing: boolean;
   autoSave: boolean;
+  // Plot state
+  plotExpr: string;
+  plotData: PlotData | null;
+  plotLoading: boolean;
+  plotError: string | null;
+  plotXMin: number;
+  plotXMax: number;
+  plotPoints: number;
 }
 
 interface DrawingState {
@@ -137,7 +152,14 @@ export default function EnhancedAICalculator() {
     showHistory: false,
     brushSize: isMobile ? 4 : 3,
     smoothing: !isMobile,
-    autoSave: true
+    autoSave: true,
+    plotExpr: 'x^2',
+    plotData: null,
+    plotLoading: false,
+    plotError: null,
+    plotXMin: -10,
+    plotXMax: 10,
+    plotPoints: 500
   });
 
   const [drawingState, setDrawingState] = useState<DrawingState>({
@@ -491,6 +513,71 @@ export default function EnhancedAICalculator() {
     }
   }, []);
 
+  const submitPlot = useCallback(async () => {
+    if (!state.plotExpr.trim()) return;
+    setState(prev => ({ ...prev, plotLoading: true, plotError: null }));
+    try {
+      const envBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
+      const apiBase = (envBase ? String(envBase) : '').replace(/\/$/, '');
+      const primaryEndpoint = apiBase ? `${apiBase}/calculate/plot` : '/api/calculate/plot';
+      const fallbackEndpoints = [primaryEndpoint, 'https://aicalc-nvif.onrender.com/calculate/plot'];
+
+      const payload = {
+        expr: state.plotExpr,
+        x_min: state.plotXMin,
+        x_max: state.plotXMax,
+        num_points: state.plotPoints
+      };
+
+      let json: any = null;
+      let lastError: unknown = null;
+      for (const ep of fallbackEndpoints) {
+        try {
+          const resp = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!resp.ok) throw new Error(`Plot request failed (${resp.status})`);
+          json = await resp.json();
+          break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (!json || !Array.isArray(json.x) || !Array.isArray(json.y)) {
+        throw lastError || new Error('Invalid plot response');
+      }
+
+      setState(prev => ({ ...prev, plotData: json as PlotData, plotLoading: false }));
+    } catch (e) {
+      setState(prev => ({ ...prev, plotLoading: false, plotError: e instanceof Error ? e.message : 'Failed to plot' }));
+    }
+  }, [state.plotExpr, state.plotXMin, state.plotXMax, state.plotPoints]);
+
+  const plotSvgData = useMemo(() => {
+    const data = state.plotData;
+    if (!data || !data.x?.length || !data.y?.length) return null;
+    const n = Math.min(data.x.length, data.y.length);
+    const xs = data.x.slice(0, n);
+    const ys = data.y.slice(0, n);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    let minY = Math.min(...ys);
+    let maxY = Math.max(...ys);
+    if (minY === maxY) { minY -= 1; maxY += 1; }
+    const width = 360;
+    const height = 220;
+    const m = 28;
+    const sx = (x: number) => m + ((x - minX) / (maxX - minX)) * (width - 2 * m);
+    const sy = (y: number) => height - (m + ((y - minY) / (maxY - minY)) * (height - 2 * m));
+    const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${sx(x)},${sy(ys[i])}`).join(' ');
+    const zeroY = (minY <= 0 && 0 <= maxY) ? sy(0) : null;
+    const zeroX = (minX <= 0 && 0 <= maxX) ? sx(0) : null;
+    return { path, width, height, m, minX, maxX, minY, maxY, zeroY, zeroX };
+  }, [state.plotData]);
+
   useEffect(() => {
     // Initialize canvas size and context. Pointer handlers are attached via
     // React props on the <canvas> element to avoid ordering/overlay issues.
@@ -762,6 +849,41 @@ export default function EnhancedAICalculator() {
           />
         )}
 
+        {!isMobile && (
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+            <LineChart className="w-4 h-4 text-cyan-300" />
+            <input
+              type="text"
+              placeholder="Expression to plot (e.g., x^2)"
+              value={state.plotExpr}
+              onChange={(e) => setState(prev => ({ ...prev, plotExpr: e.target.value }))}
+              className="bg-transparent outline-none text-white placeholder-white/50 w-40"
+            />
+            <input
+              type="number"
+              value={state.plotXMin}
+              onChange={(e) => setState(prev => ({ ...prev, plotXMin: Number(e.target.value) }))}
+              className="w-16 bg-white/10 border border-white/10 rounded px-2 py-1 text-white text-sm"
+              title="x min"
+            />
+            <span className="text-white/50 text-sm">to</span>
+            <input
+              type="number"
+              value={state.plotXMax}
+              onChange={(e) => setState(prev => ({ ...prev, plotXMax: Number(e.target.value) }))}
+              className="w-16 bg-white/10 border border-white/10 rounded px-2 py-1 text-white text-sm"
+              title="x max"
+            />
+            <button
+              onClick={submitPlot}
+              disabled={state.plotLoading}
+              className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/30 rounded text-cyan-300 text-sm disabled:opacity-50"
+            >
+              {state.plotLoading ? 'Plotting...' : 'Plot'}
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <button
             onClick={undoLastAction}
@@ -836,6 +958,54 @@ export default function EnhancedAICalculator() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {state.plotData && (
+        <div
+          className={`absolute right-4 z-30 bg-black/80 backdrop-blur-xl border border-white/20 rounded-xl p-4 w-96`}
+          style={{ top: (state.results.length > 0 || !!state.error) ? 420 : 130 }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-white">
+              <LineChart className="w-5 h-5" />
+              <h3 className="font-semibold">Plot</h3>
+            </div>
+            <button
+              onClick={() => setState(prev => ({ ...prev, plotData: null }))}
+              className="text-white/60 hover:text-white text-sm"
+            >
+              Close
+            </button>
+          </div>
+
+          {state.plotError ? (
+            <div className="flex items-center gap-2 text-red-300 text-sm">
+              <AlertCircle className="w-4 h-4" />
+              <span>{state.plotError}</span>
+            </div>
+          ) : (
+            <div className="bg-white/5 rounded-md p-2 border border-white/10">
+              {plotSvgData && (
+                <svg width={plotSvgData.width} height={plotSvgData.height}>
+                  <rect x="0" y="0" width={plotSvgData.width} height={plotSvgData.height} fill="rgba(0,0,0,0.2)" />
+                  {plotSvgData.zeroY !== null && (
+                    <line x1="0" y1={plotSvgData.zeroY as number} x2={plotSvgData.width} y2={plotSvgData.zeroY as number} stroke="#ffffff22" />
+                  )}
+                  {plotSvgData.zeroX !== null && (
+                    <line x1={plotSvgData.zeroX as number} y1="0" x2={plotSvgData.zeroX as number} y2={plotSvgData.height} stroke="#ffffff22" />
+                  )}
+                  <path d={plotSvgData.path} stroke="#22d3ee" strokeWidth="2" fill="none" />
+                </svg>
+              )}
+              {!plotSvgData && (
+                <div className="text-white/60 text-sm">No data</div>
+              )}
+            </div>
+          )}
+          {state.plotData?.latex && (
+            <div className="mt-2 text-xs text-white/60 font-mono truncate">{state.plotData.latex}</div>
           )}
         </div>
       )}

@@ -28,3 +28,8 @@ urllib3==2.2.2
 
 # Note: This version may have reduced functionality
 # Use only as last resort if main requirements.txt fails
+
+# Numerical, symbolic, and units (still needed for features)
+numpy==2.0.2
+sympy==1.13.2
+pint==0.24.4
