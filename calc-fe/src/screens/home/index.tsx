@@ -376,11 +376,15 @@ export default function EnhancedAICalculator() {
     setState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      // Build endpoint: use Vite env VITE_API_BASE if provided, else dev proxy
+      // Build endpoint list: prefer explicit base, then dev proxy on localhost, then hosted backend
       const envBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
       const apiBase = (envBase ? String(envBase) : '').replace(/\/$/, '');
-      const primaryEndpoint = apiBase ? `${apiBase}/calculate` : '/api/calculate';
-      const fallbackEndpoints = [primaryEndpoint, 'https://aicalc-nvif.onrender.com/calculate'];
+      const isLocalhost = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+      const fallbackEndpoints: string[] = [];
+      if (apiBase) fallbackEndpoints.push(`${apiBase}/calculate`);
+      if (isLocalhost) fallbackEndpoints.push('/api/calculate');
+      // Always include hosted backend as last resort
+      fallbackEndpoints.push('https://aicalc-nvif.onrender.com/calculate');
 
       // Prepare JSON payload with base64 image and metadata
       const dataUrl = canvas.toDataURL('image/png');
@@ -700,8 +704,11 @@ export default function EnhancedAICalculator() {
     try {
       const envBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
       const apiBase = (envBase ? String(envBase) : '').replace(/\/$/, '');
-      const primaryEndpoint = apiBase ? `${apiBase}/calculate/plot` : '/api/calculate/plot';
-      const fallbackEndpoints = [primaryEndpoint, 'https://aicalc-nvif.onrender.com/calculate/plot'];
+      const isLocalhost = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+      const fallbackEndpoints: string[] = [];
+      if (apiBase) fallbackEndpoints.push(`${apiBase}/calculate/plot`);
+      if (isLocalhost) fallbackEndpoints.push('/api/calculate/plot');
+      fallbackEndpoints.push('https://aicalc-nvif.onrender.com/calculate/plot');
 
       const payload = {
         expr: state.plotExpr,
