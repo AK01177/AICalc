@@ -492,6 +492,178 @@ export default function EnhancedAICalculator() {
     }));
   }, []);
 
+  
+  const sanitizeExpression = useCallback((raw: string): string | null => {
+    if (!raw) return null;
+    let expr = raw.trim();
+    expr = expr.replace(/^y\s*=\s*/i, '');
+    expr = expr.replace(/^f\s*\(\s*x\s*\)\s*=\s*/i, '');
+    expr = expr.replace(/\^/g, '**');
+    // Map common functions to Math.
+    const fnMap: Record<string, string> = {
+      sin: 'Math.sin', cos: 'Math.cos', tan: 'Math.tan',
+      asin: 'Math.asin', acos: 'Math.acos', atan: 'Math.atan',
+      sqrt: 'Math.sqrt', abs: 'Math.abs', exp: 'Math.exp', log: 'Math.log', ln: 'Math.log',
+      floor: 'Math.floor', ceil: 'Math.ceil', round: 'Math.round', pow: 'Math.pow',
+      min: 'Math.min', max: 'Math.max'
+    };
+    expr = expr.replace(/([a-zA-Z]+)\s*\(/g, (m, p1) => (fnMap[p1] ? fnMap[p1] : p1) + '(');
+    // Allow only safe characters
+    const safe = /^[0-9xX+\-*/().,\s**Mathminaxcoelgrdptw]+$/;
+    if (!safe.test(expr)) return null;
+    // Normalize variable to lowercase x
+    expr = expr.replace(/X/g, 'x');
+    return expr;
+  }, []);
+
+  const tryBuildFunction = useCallback((expr: string): ((x: number) => number) | null => {
+    try {
+      // eslint-disable-next-line no-new-func
+      const fn = new Function('x', `return (${expr});`) as (x: number) => number;
+      // quick sanity check
+      // may throw; ignore
+      void fn(0);
+      return fn;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const plotGraph = useCallback((expr: string) => {
+    const canvas = graphCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    // Clear
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#0b0b0b';
+    ctx.fillRect(0, 0, width, height);
+
+    const fnExpr = sanitizeExpression(expr);
+    if (!fnExpr) {
+      setGraphState(prev => ({ ...prev, error: 'Invalid expression' }));
+      return;
+    }
+    const fn = tryBuildFunction(fnExpr);
+    if (!fn) {
+      setGraphState(prev => ({ ...prev, error: 'Could not parse function' }));
+      return;
+    }
+
+    // Sample domain
+    const xMin = -10, xMax = 10, samples = 600;
+    const xs: number[] = [];
+    const ys: number[] = [];
+    for (let i = 0; i <= samples; i++) {
+      const x = xMin + (i * (xMax - xMin)) / samples;
+      let y = Number.NaN;
+      try {
+        y = fn(x);
+      } catch {}
+      if (Number.isFinite(y)) {
+        xs.push(x);
+        ys.push(y);
+      } else {
+        xs.push(x);
+        ys.push(Number.NaN);
+      }
+    }
+
+    // Determine y-range ignoring NaNs
+    const validYs = ys.filter((v) => Number.isFinite(v));
+    let yMin = -10, yMax = 10;
+    if (validYs.length > 0) {
+      yMin = Math.min(...validYs);
+      yMax = Math.max(...validYs);
+      if (yMin === yMax) { yMin -= 1; yMax += 1; }
+      // Clamp extreme ranges
+      const span = yMax - yMin;
+      if (span > 1000) {
+        yMin = -50; yMax = 50;
+      }
+    }
+
+    // Transform helpers
+    const toPxX = (x: number) => ((x - xMin) / (xMax - xMin)) * width;
+    const toPxY = (y: number) => height - ((y - yMin) / (yMax - yMin)) * height;
+
+    // Draw axes
+    ctx.strokeStyle = '#ffffff22';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    // y-axis
+    const yAxisX = toPxX(0);
+    ctx.moveTo(yAxisX, 0);
+    ctx.lineTo(yAxisX, height);
+    // x-axis
+    const xAxisY = toPxY(0);
+    ctx.moveTo(0, xAxisY);
+    ctx.lineTo(width, xAxisY);
+    ctx.stroke();
+
+    // Plot curve
+    ctx.strokeStyle = '#00e0a8';
+    ctx.lineWidth = 2;
+    let started = false;
+    ctx.beginPath();
+    for (let i = 0; i < xs.length; i++) {
+      const x = xs[i];
+      const y = ys[i];
+      if (!Number.isFinite(y)) {
+        started = false;
+        continue;
+      }
+      const px = toPxX(x);
+      const py = toPxY(y);
+      if (!started) {
+        ctx.moveTo(px, py);
+        started = true;
+      } else {
+        ctx.lineTo(px, py);
+      }
+    }
+    ctx.stroke();
+  }, [sanitizeExpression, tryBuildFunction]);
+
+  const extractPlottableExpr = useCallback((results: Result[]): string | null => {
+    if (!Array.isArray(results) || results.length === 0) return null;
+    for (const r of results) {
+      const exprRaw = (r?.expr ?? '').toString();
+      const expr = exprRaw.replace(/\s+/g, '');
+      // Accept y=..., f(x)=..., or expressions containing x
+      if (/^y=/.test(expr) || /^f\(x\)=/.test(expr) || (/x/.test(expr) && !/=/.test(expr))) {
+        return exprRaw;
+      }
+    }
+    return null;
+  }, []);
+
+  useEffect(() => {
+    if (state.results.length === 0) return;
+    const expr = extractPlottableExpr(state.results);
+    if (expr) {
+      setGraphState({ show: true, expr, error: null });
+      // Plot on next paint to ensure canvas size is set
+      requestAnimationFrame(() => {
+        const canvas = graphCanvasRef.current;
+        if (canvas) {
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const rect = canvas.getBoundingClientRect();
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
+          canvas.style.width = `${rect.width}px`;
+          canvas.style.height = `${rect.height}px`;
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.scale(dpr, dpr);
+          plotGraph(expr);
+        }
+      });
+    }
+  }, [state.results, extractPlottableExpr, plotGraph]);
+
   const updateVariable = useCallback((input: string) => {
     try {
       const pairs = input.split(',').map(pair => pair.trim());
