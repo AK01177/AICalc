@@ -170,6 +170,11 @@ export default function EnhancedAICalculator() {
     redoStack: []
   });
 
+  // Graph canvas and state used by inline plotting utility
+  type GraphState = { show: boolean; expr: string; error: string | null };
+  const graphCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [, setGraphState] = useState<GraphState>({ show: false, expr: '', error: null });
+
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -507,7 +512,11 @@ export default function EnhancedAICalculator() {
       floor: 'Math.floor', ceil: 'Math.ceil', round: 'Math.round', pow: 'Math.pow',
       min: 'Math.min', max: 'Math.max'
     };
-    expr = expr.replace(/([a-zA-Z]+)\s*\(/g, (m, p1) => (fnMap[p1] ? fnMap[p1] : p1) + '(');
+    expr = expr.replace(/([a-zA-Z]+)\s*\(/g, (_m, p1) => {
+      // Mark first arg as used to satisfy TS noUnusedParameters
+      void _m;
+      return (fnMap[p1] ? fnMap[p1] : p1) + '(';
+    });
     // Allow only safe characters
     const safe = /^[0-9xX+\-*/().,\s**Mathminaxcoelgrdptw]+$/;
     if (!safe.test(expr)) return null;
@@ -544,12 +553,12 @@ export default function EnhancedAICalculator() {
 
     const fnExpr = sanitizeExpression(expr);
     if (!fnExpr) {
-      setGraphState(prev => ({ ...prev, error: 'Invalid expression' }));
+      setGraphState((prev: GraphState) => ({ ...prev, error: 'Invalid expression' }));
       return;
     }
     const fn = tryBuildFunction(fnExpr);
     if (!fn) {
-      setGraphState(prev => ({ ...prev, error: 'Could not parse function' }));
+      setGraphState((prev: GraphState) => ({ ...prev, error: 'Could not parse function' }));
       return;
     }
 
