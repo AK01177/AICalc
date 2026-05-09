@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getStroke } from "perfect-freehand";
 
 const SUBJECTS = ["math", "physics", "chemistry"];
-const SWATCHES = ["#ffffff", "#888888"];
+const SWATCHES = ["#000000", "#000080", "#800000", "#008000", "#808000", "#808080"];
 
 export default function App() {
   const [color, setColor] = useState(SWATCHES[0]);
@@ -37,7 +37,7 @@ export default function App() {
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, rect.width, rect.height);
     ctxRef.current = ctx;
   }, []);
@@ -168,30 +168,28 @@ export default function App() {
   return (
     <div className="page">
       <header>
-        <div className="column">
-          <div className="row">
-            <strong>AICALC_v1.0</strong>
-            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
-              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-              <span className="text-xs font-medium text-white/70">
-                {import.meta.env.VITE_MODEL_NAME || "Gemini 2.5 Flash"}
-              </span>
-            </div>
-          </div>
-          <div className="row usage-info">
-            <span>TOKENS: {usage.total.toLocaleString()} / 500K</span>
-            <span style={{ opacity: 0.5 }}> (+{usage.last})</span>
-          </div>
+        <div className="row" style={{ flex: 1 }}>
+          <div style={{ marginRight: '6px' }}>🧮</div>
+          <strong style={{ letterSpacing: '1px' }}>AI Calculator by Aryan Ranavat</strong>
         </div>
-        <div className="row">
-          <button onClick={solve} disabled={loading || !hasContent}>{loading ? "WORKING" : "RUN"}</button>
-          <button onClick={() => {
-            initCanvas();
-            setHasContent(false);
-            setResults([]);
-          }}>CLR</button>
+        <div className="row usage-info" style={{ fontSize: '11px', color: '#dfdfdf' }}>
+          <span>TOKENS: {usage.total.toLocaleString()}</span>
         </div>
       </header>
+      <div className="row" style={{ background: '#c0c0c0', padding: '2px 6px', borderBottom: '1px solid #808080' }}>
+        <button onClick={solve} disabled={loading || !hasContent}>{loading ? "BUSY..." : "CALCULATE"}</button>
+        <button onClick={() => {
+          initCanvas();
+          setHasContent(false);
+          setResults([]);
+        }}>CLEAR</button>
+        <div style={{ flex: 1 }} />
+        <div className="flex items-center gap-2 px-2 py-0.5 bg-white border-2 border-gray-400 inset-shadow">
+          <span className="text-[10px] font-bold text-gray-600">
+            {import.meta.env.VITE_MODEL_NAME || "GEMINI 2.5 FLASH"}
+          </span>
+        </div>
+      </div>
 
       <div className="canvas-wrap">
         <canvas ref={canvasRef}
@@ -222,10 +220,10 @@ export default function App() {
             <span className="label">COLORS</span>
             <div className="row wrap">
               {SWATCHES.map(s => (
-                <div key={s} 
-                  className={`swatch ${color === s ? "active" : ""}`} 
-                  style={{ background: s }} 
-                  onClick={() => setColor(s)} 
+                <div key={s}
+                  className={`swatch ${color === s ? "active" : ""}`}
+                  style={{ background: s }}
+                  onClick={() => setColor(s)}
                 />
               ))}
             </div>
@@ -245,7 +243,7 @@ export default function App() {
               <div key={i} className="card">
                 <div>{r.expr} = <strong>{r.result}</strong></div>
                 {showSteps && r.steps?.map((s: any, j: number) => (
-                  <div key={j} style={{ fontSize: '9px', marginTop: '5px', color: '#aaa' }}>
+                  <div key={j} style={{ fontSize: '10px', marginTop: '4px', color: '#444' }}>
                     &gt; {s.explanation}
                   </div>
                 ))}
