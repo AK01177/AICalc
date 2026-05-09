@@ -124,8 +124,8 @@ export default function App() {
       if (oCtx) oCtx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
 
       const apiBase = import.meta.env.VITE_API_BASE || "";
-      const endpoint = apiBase 
-        ? `${apiBase.replace(/\/$/, "")}/calculate` 
+      const endpoint = apiBase
+        ? `${apiBase.replace(/\/$/, "")}/calculate`
         : "/api/calculate";
 
       const resp = await fetch(endpoint, {
@@ -195,6 +195,7 @@ export default function App() {
 
       <div className="canvas-wrap">
         <canvas ref={canvasRef}
+          style={{ touchAction: "none" }}
           onPointerDown={e => onPointer(e, "down")}
           onPointerMove={e => onPointer(e, "move")}
           onPointerUp={e => onPointer(e, "up")}
@@ -202,18 +203,40 @@ export default function App() {
         />
 
         <div className="controls">
-          <select value={subject} onChange={e => setSubject(e.target.value)}>
-            {SUBJECTS.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
-          </select>
-          <div className="row">
-            {SWATCHES.map(s => (
-              <div key={s} className={`swatch ${color === s ? "active" : ""}`} style={{ background: s }} onClick={() => setColor(s)} />
-            ))}
+          <div className="control-group">
+            <span className="label">SUBJECT</span>
+            <select value={subject} onChange={e => setSubject(e.target.value)}>
+              {SUBJECTS.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+            </select>
           </div>
-          <input type="range" min="1" max="10" value={brush} onChange={e => setBrush(Number(e.target.value))} />
-          <label style={{ fontSize: '10px' }}>
-            <input type="checkbox" checked={showSteps} onChange={e => setShowSteps(e.target.checked)} /> STEPS
-          </label>
+
+          <div className="control-group">
+            <div className="row justify-between">
+              <span className="label">BRUSH SIZE</span>
+              <span className="val">{brush}</span>
+            </div>
+            <input type="range" min="1" max="15" value={brush} onChange={e => setBrush(Number(e.target.value))} />
+          </div>
+
+          <div className="control-group">
+            <span className="label">COLORS</span>
+            <div className="row wrap">
+              {SWATCHES.map(s => (
+                <div key={s} 
+                  className={`swatch ${color === s ? "active" : ""}`} 
+                  style={{ background: s }} 
+                  onClick={() => setColor(s)} 
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="control-group">
+            <label className="checkbox-label">
+              <input type="checkbox" checked={showSteps} onChange={e => setShowSteps(e.target.checked)} />
+              <span>SHOW STEPS</span>
+            </label>
+          </div>
         </div>
 
         {results.length > 0 && (
