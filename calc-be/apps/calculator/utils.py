@@ -1,271 +1,179 @@
-import json
+"""Gemini-based image analysis for the AICalc backend.
+
+This module wraps the Google Gen AI client and produces a list of
+result dictionaries: ``[{"expr": "...", "result": "...", "assign": bool, "steps": [...]}, ...]``.
+"""
+
+from __future__ import annotations
+
 import ast
+from io import BytesIO
+import json
+import logging
+import re
+from typing import Any, Dict, List, Optional
+
+from google import genai
+from google.genai import types
 from PIL import Image
-import google.generativeai as genai
-from constants import GEMINI_API_KEY
 
-# Configure Gemini API
-genai.configure(api_key=GEMINI_API_KEY)
+from constants import GEMINI_API_KEYS, GEMINI_MODEL
 
-def _extract_text_from_gemini_response(response) -> str:
-    """
-    Safely extract concatenated text from a Gemini response.
-    """
+logger = logging.getLogger("aicalc.utils")
+
+_key_index = 0
+_genai_client: Optional[genai.Client] = None
+
+def _get_client() -> Optional[genai.Client]:
+    global _genai_client, _key_index
+    if not GEMINI_API_KEYS:
+        logger.error("No GEMINI_API_KEYS found in environment!")
+        return None
+    if _genai_client is None:
+        key = GEMINI_API_KEYS[_key_index]
+        _genai_client = genai.Client(api_key=key)
+        masked_key = key[:4] + "..." + key[-4:] if len(key) > 8 else "****"
+        logger.info(">>> Using Gemini API Key #%d [%s]", _key_index + 1, masked_key)
+    return _genai_client
+
+def _rotate_key():
+    global _genai_client, _key_index
+    if len(GEMINI_API_KEYS) > 1:
+        old_idx = _key_index
+        _key_index = (_key_index + 1) % len(GEMINI_API_KEYS)
+        _genai_client = None
+        logger.warning("!!! QUOTA EXHAUSTED on Key #%d. Rotating to Key #%d...", old_idx + 1, _key_index + 1)
+        return True
+    logger.error("!!! QUOTA EXHAUSTED and no more keys available to rotate.")
+    return False
+
+_DEFAULT_MODEL_NAME = "gemini-2.5-flash"
+_MODEL_PREFERENCE = ["gemini-2.5-flash"]
+_resolved_model_name: Optional[str] = None
+
+def _subject_prompt(subject: str) -> str:
+    """Return a subject-specific prompt fragment."""
+    label = subject.lower() if subject else "math"
+    return (
+        f"You are an exact {label} solver. Be extremely precise. "
+        "Provide final numerical results, simplified expressions, or exact constants (pi, e). "
+        "For equations, return one dict per variable with 'assign': True."
+    )
+
+
+def _build_prompt(
+    subject: str, dict_of_vars: Dict[str, Any], *, include_steps: bool = True
+) -> str:
+    vars_json = json.dumps(dict_of_vars or {}, ensure_ascii=False)
+    steps_rule = (
+        "If include_steps is true, provide a concise 'steps' array with 'explanation'. "
+        "If false, do NOT provide steps."
+    )
+    return (
+        f"Variables: {vars_json}. {steps_rule} "
+        "FORMAT: JSON array: [{'expr': '...', 'result': '...', 'assign': bool, 'steps': []}]. "
+        "No prose or markdown. " + _subject_prompt(subject)
+    )
+
+
+_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n?|\n?```$", re.MULTILINE)
+_ARRAY_RE = re.compile(r"\[\s*\{.*?\}\s*\]", re.DOTALL)
+
+
+def _image_to_png_bytes(img: Image.Image) -> bytes:
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _extract_text(response: Any) -> str:
+    """Safely extract text from a Gemini response object."""
     try:
-        if hasattr(response, 'text') and response.text:
+        if getattr(response, "text", None):
             return response.text
-        
-        if hasattr(response, 'parts'):
-            parts = response.parts
-            text_parts = [part.text for part in parts if hasattr(part, 'text') and part.text]
-            if text_parts:
-                return "".join(text_parts)
-        
-        if hasattr(response, 'candidates'):
-            for candidate in response.candidates:
-                if hasattr(candidate, 'content'):
-                    content = candidate.content
-                    if hasattr(content, 'parts'):
-                        text_parts = [part.text for part in content.parts if hasattr(part, 'text') and part.text]
-                        if text_parts:
-                            return "".join(text_parts)
-                            
-        if hasattr(response, 'content'):
-            content = response.content
-            if hasattr(content, 'parts'):
-                parts = content.parts
-                text_parts = []
-                for part in parts:
-                    if hasattr(part, 'text') and part.text:
-                        text_parts.append(part.text)
-                if text_parts:
-                    result = "".join(text_parts)
-                    return result
-        
-        # Try string representation if all else fails
-        response_str = str(response)
-        if response_str and response_str != str(type(response)):
-            return response_str
-            
-    except Exception as e:
-        print(f"Error extracting text from response: {e}")
-    
+        for candidate in getattr(response, "candidates", []) or []:
+            content = getattr(candidate, "content", None)
+            parts = getattr(content, "parts", None) if content else None
+            if parts:
+                return "".join(getattr(p, "text", "") or "" for p in parts)
+    except Exception:
+        logger.exception("Failed to extract text from Gemini response")
     return ""
 
-def analyze_image(img: Image, dict_of_vars: dict = None, subject: str = "math") -> list:
-    """
-    Analyze a mathematical expression in an image and return step-by-step solution.
-    
-    Args:
-        img: PIL Image object containing the mathematical expression
-        dict_of_vars: Dictionary of variable values (optional)
-        subject: Subject area (math, physics, chemistry, etc.)
-    
-    Returns:
-        List of dictionaries containing solutions
-    """
-    # Initialize Gemini model
-    model = genai.GenerativeModel(model_name="gemini-2.5-pro")
-    dict_of_vars_str = json.dumps(dict_of_vars, ensure_ascii=False) if dict_of_vars else "{}"
-    
-    # Base prompt for all subjects
-    base_prompt = (
-        f"You have been given an image with some expressions, equations, or problems related to {subject}, and you need to solve them. "
-        f"Note: Use the PEMDAS rule for solving mathematical expressions. PEMDAS stands for the Priority Order: Parentheses, Exponents, Multiplication and Division (from left to right), Addition and Subtraction (from left to right). "
-        f"Here is a dictionary of user-assigned variables. If the given expression has any of these variables, use its actual value from this dictionary accordingly: {dict_of_vars_str}. "
-        f"CRITICAL: Return ONLY valid Python literal syntax that can be parsed by ast.literal_eval(). "
-        f"DO NOT use backticks, markdown formatting, or any other text. "
-        f"DO NOT include language identifiers like 'python' or 'json'. "
-        f"Example valid response: [{{'expr': '2 + 3', 'result': 5}}]"
-    )
-    
-    # Subject-specific prompts
-    if subject == "math":
-        subject_prompt = (
-            f"YOU CAN HAVE FIVE TYPES OF EQUATIONS/EXPRESSIONS IN THIS IMAGE, AND ONLY ONE CASE SHALL APPLY EVERY TIME: "
-            f"Following are the cases: "
-            f"1. Simple mathematical expressions like 2 + 2, 3 * 4, 5 / 6, 7 - 8, etc.: In this case, solve and return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"2. Set of Equations like x^2 + 2x + 1 = 0, 3y + 4x = 0, 5x^2 + 6y + 7 = 12, etc.: In this case, solve for the given variable, and the format should be a COMMA SEPARATED LIST OF DICTS, with dict 1 as {{'expr': 'x', 'result': 2, 'assign': True}} and dict 2 as {{'expr': 'y', 'result': 5, 'assign': True}}. This example assumes x was calculated as 2, and y as 5. Include as many dicts as there are variables. "
-            f"3. Assigning values to variables like x = 4, y = 5, z = 6, etc.: In this case, assign values to variables and return another key in the dict called {{'assign': True}}, keeping the variable as 'expr' and the value as 'result' in the original dictionary. RETURN AS A LIST OF DICTS. "
-            f"4. Analyzing Graphical Math problems, which are word problems represented in drawing form, such as cars colliding, trigonometric problems, problems on the Pythagorean theorem, adding runs from a cricket wagon wheel, etc. These will have a drawing representing some scenario and accompanying information with the image. PAY CLOSE ATTENTION TO DIFFERENT COLORS FOR THESE PROBLEMS. You need to return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"5. Detecting Abstract Concepts that a drawing might show, such as love, hate, jealousy, patriotism, or a historic reference to war, invention, discovery, quote, etc. USE THE SAME FORMAT AS OTHERS TO RETURN THE ANSWER, where 'expr' will be the explanation of the drawing, and 'result' will be the abstract concept. "
-        )
-    elif subject == "physics":
-        subject_prompt = (
-            f"YOU CAN HAVE FIVE TYPES OF PHYSICS PROBLEMS IN THIS IMAGE, AND ONLY ONE CASE SHALL APPLY EVERY TIME: "
-            f"Following are the cases: "
-            f"1. Simple physics calculations like F = ma, E = mc², v = d/t, etc.: In this case, solve and return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"2. Set of Physics Equations with multiple variables like F = ma, v = u + at, s = ut + ½at², etc.: In this case, solve for the given variable, and the format should be a COMMA SEPARATED LIST OF DICTS, with dict 1 as {{'expr': 'F', 'result': 50, 'assign': True}} and dict 2 as {{'expr': 'a', 'result': 5, 'assign': True}}. Include as many dicts as there are variables. "
-            f"3. Assigning values to physics variables like m = 10 kg, v = 20 m/s, t = 5 s, etc.: In this case, assign values to variables and return another key in the dict called {{'assign': True}}, keeping the variable as 'expr' and the value as 'result' in the original dictionary. RETURN AS A LIST OF DICTS. "
-            f"4. Analyzing Physics Diagrams like free body diagrams, circuit diagrams, ray diagrams, etc. These will have drawings representing physical scenarios with accompanying information. PAY CLOSE ATTENTION TO DIFFERENT COLORS AND LABELS. You need to return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"5. Physics Word Problems represented in drawing form, such as projectile motion, collisions, electrical circuits, etc. These will have a drawing representing some physical scenario and accompanying information. You need to return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-        )
-    elif subject == "chemistry":
-        subject_prompt = (
-            f"YOU CAN HAVE FIVE TYPES OF CHEMISTRY PROBLEMS IN THIS IMAGE, AND ONLY ONE CASE SHALL APPLY EVERY TIME: "
-            f"Following are the cases: "
-            f"1. Simple chemistry calculations like n = m/M, c = n/V, pH = -log[H+], etc.: In this case, solve and return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"2. Set of Chemistry Equations with multiple variables like PV = nRT, c₁V₁ = c₂V₂, etc.: In this case, solve for the given variable, and the format should be a COMMA SEPARATED LIST OF DICTS, with dict 1 as {{'expr': 'n', 'result': 2.5, 'assign': True}} and dict 2 as {{'expr': 'V', 'result': 0.5, 'assign': True}}. Include as many dicts as there are variables. "
-            f"3. Assigning values to chemistry variables like m = 50 g, M = 18 g/mol, V = 100 mL, etc.: In this case, assign values to variables and return another key in the dict called {{'assign': True}}, keeping the variable as 'expr' and the value as 'result' in the original dictionary. RETURN AS A LIST OF DICTS. "
-            f"4. Analyzing Chemistry Diagrams like molecular structures, chemical equations, titration curves, etc. These will have drawings representing chemical scenarios with accompanying information. PAY CLOSE ATTENTION TO DIFFERENT COLORS, SYMBOLS, AND LABELS. You need to return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"5. Chemistry Word Problems represented in drawing form, such as stoichiometry, acid-base reactions, gas laws, etc. These will have a drawing representing some chemical scenario and accompanying information. You need to return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-        )
-    elif subject == "science":
-        subject_prompt = (
-            f"YOU CAN HAVE FIVE TYPES OF GENERAL SCIENCE PROBLEMS IN THIS IMAGE, AND ONLY ONE CASE SHALL APPLY EVERY TIME: "
-            f"Following are the cases: "
-            f"1. Simple science calculations like density = mass/volume, speed = distance/time, etc.: In this case, solve and return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"2. Set of Science Equations with multiple variables like P = F/A, E = mgh, etc.: In this case, solve for the given variable, and the format should be a COMMA SEPARATED LIST OF DICTS, with dict 1 as {{'expr': 'P', 'result': 1000, 'assign': True}} and dict 2 as {{'expr': 'F', 'result': 5000, 'assign': True}}. Include as many dicts as there are variables. "
-            f"3. Assigning values to science variables like m = 100 kg, h = 10 m, g = 9.8 m/s², etc.: In this case, assign values to variables and return another key in the dict called {{'assign': True}}, keeping the variable as 'expr' and the value as 'result' in the original dictionary. RETURN AS A LIST OF DICTS. "
-            f"4. Analyzing Science Diagrams like food webs, water cycles, cell structures, etc. These will have drawings representing scientific concepts with accompanying information. PAY CLOSE ATTENTION TO DIFFERENT COLORS, LABELS, AND ARROWS. You need to return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"5. Science Word Problems represented in drawing form, such as ecosystem interactions, geological processes, biological systems, etc. These will have a drawing representing some scientific scenario and accompanying information. You need to return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-        )
-    else:
-        # Default to math if subject is not recognized
-        subject_prompt = (
-            f"YOU CAN HAVE FIVE TYPES OF EQUATIONS/EXPRESSIONS IN THIS IMAGE, AND ONLY ONE CASE SHALL APPLY EVERY TIME: "
-            f"Following are the cases: "
-            f"1. Simple mathematical expressions like 2 + 2, 3 * 4, 5 / 6, 7 - 8, etc.: In this case, solve and return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"2. Set of Equations like x^2 + 2x + 1 = 0, 3y + 4x = 0, 5x^2 + 6y + 7 = 12, etc.: In this case, solve for the given variable, and the format should be a COMMA SEPARATED LIST OF DICTS, with dict 1 as {{'expr': 'x', 'result': 2, 'assign': True}} and dict 2 as {{'expr': 'y', 'result': 5, 'assign': True}}. This example assumes x was calculated as 2, and y as 5. Include as many dicts as there are variables. "
-            f"3. Assigning values to variables like x = 4, y = 5, z = 6, etc.: In this case, assign values to variables and return another key in the dict called {{'assign': True}}, keeping the variable as 'expr' and the value as 'result' in the original dictionary. RETURN AS A LIST OF DICTS. "
-            f"4. Analyzing Graphical Math problems, which are word problems represented in drawing form, such as cars colliding, trigonometric problems, problems on the Pythagorean theorem, adding runs from a cricket wagon wheel, etc. These will have a drawing representing some scenario and accompanying information with the image. PAY CLOSE ATTENTION TO DIFFERENT COLORS FOR THESE PROBLEMS. You need to return the answer in the format of a LIST OF ONE DICT [{{'expr': 'given expression', 'result': 'calculated answer'}}]. "
-            f"5. Detecting Abstract Concepts that a drawing might show, such as love, hate, jealousy, patriotism, or a historic reference to war, invention, discovery, quote, etc. USE THE SAME FORMAT AS OTHERS TO RETURN THE ANSWER, where 'expr' will be the explanation of the drawing, and 'result' will be the abstract concept. "
-        )
-    
-    prompt = base_prompt + subject_prompt + f"Analyze the equation or expression in this image and return the answer according to the given rules: Make sure to use extra backslashes for escape characters like \\f -> \\\\f, \\n -> \\\\n, etc. "
-    
-    print(f"Sending prompt to Gemini for subject: {subject}")
-    print(f"Prompt length: {len(prompt)} characters")
+
+def _parse_response(text: str) -> Optional[List[Any]]:
+    """Try several strategies to coerce model output into a Python list."""
+    if not text: return None
+    cleaned = _FENCE_RE.sub("", text).strip()
+    for parser in (json.loads, ast.literal_eval):
+        try:
+            parsed = parser(cleaned)
+            if isinstance(parsed, list): return parsed
+            if isinstance(parsed, dict): return [parsed]
+        except: continue
+    matches = _ARRAY_RE.findall(text)
+    if matches:
+        try: return json.loads(matches[0])
+        except: pass
+    return None
+
+
+def analyze_image(
+    img: Image.Image,
+    dict_of_vars: Optional[Dict[str, Any]] = None,
+    subject: str = "math",
+    *,
+    include_steps: bool = True,
+    retry_count: int = 0
+) -> Dict[str, Any]:
+    """Run Gemini on the image and return results with key rotation."""
+    client = _get_client()
+    if not client:
+        return {"results": [{"expr": "Error", "result": "No API key", "assign": False}], "usage": {}}
+
+    global _resolved_model_name
+    if _resolved_model_name is None:
+        _resolved_model_name = GEMINI_MODEL or _DEFAULT_MODEL_NAME
+
+    prompt = _build_prompt(subject, dict_of_vars or {}, include_steps=include_steps)
     
     try:
-        response = model.generate_content([prompt, img])
-        
-        print(f"Gemini response received: {type(response)}")
-        print(f"Response finish reason: {getattr(response, 'finish_reason', 'N/A')}")
-        
-        response_text = _extract_text_from_gemini_response(response)
-        
-        if not response_text:
-            # Log helpful debugging info without triggering response.text errors
-            try:
-                candidate_reasons = [getattr(c, "finish_reason", None) for c in getattr(response, "candidates", []) or []]
-            except Exception:
-                candidate_reasons = []
-            print("Gemini returned no text. Candidate finish_reasons:", candidate_reasons)
-            return []
-            
-        print("Raw Gemini response text:", response_text)
-        answers = []
-        
-        # First, try to clean up the response text
-        cleaned_text = response_text.strip()
-        
-        # Remove markdown code blocks completely
-        if cleaned_text.startswith('```'):
-            # Find the first and last ```
-            first_backticks = cleaned_text.find('```')
-            last_backticks = cleaned_text.rfind('```')
-            
-            if first_backticks != -1 and last_backticks != -1 and first_backticks != last_backticks:
-                # Extract content between backticks
-                cleaned_text = cleaned_text[first_backticks + 3:last_backticks].strip()
-                
-                # Remove language identifier if present (e.g., "python", "json")
-                lines = cleaned_text.split('\n')
-                if lines[0].strip() in ['python', 'json', 'javascript', 'js']:
-                    cleaned_text = '\n'.join(lines[1:]).strip()
-        
-        print("Cleaned text:", cleaned_text)
-        
-        # Try multiple parsing approaches
-        parsing_successful = False
-        
-        # Method 1: Try json.loads on cleaned text (most reliable for JSON)
-        try:
-            answers = json.loads(cleaned_text)
-            print("Successfully parsed with json.loads")
-            parsing_successful = True
-        except Exception as json_error:
-            print(f"JSON parsing failed: {json_error}")
-        
-        # Method 2: Try ast.literal_eval on cleaned text
-        if not parsing_successful:
-            try:
-                answers = ast.literal_eval(cleaned_text)
-                print("Successfully parsed with ast.literal_eval")
-                parsing_successful = True
-            except Exception as ast_error:
-                print(f"ast.literal_eval failed: {ast_error}")
-        
-        # Method 3: Try json.loads on original text
-        if not parsing_successful:
-            try:
-                answers = json.loads(response_text)
-                print("Successfully parsed original text with json.loads")
-                parsing_successful = True
-            except Exception as json_error2:
-                print(f"JSON parsing of original text failed: {json_error2}")
-        
-        # Method 4: Try ast.literal_eval on original text
-        if not parsing_successful:
-            try:
-                answers = ast.literal_eval(response_text)
-                print("Successfully parsed original text with ast.literal_eval")
-                parsing_successful = True
-            except Exception as ast_error2:
-                print(f"ast.literal_eval of original text failed: {ast_error2}")
-        
-        # Method 5: Last resort - try to find and parse patterns with regex
-        if not parsing_successful:
-            try:
-                import re
-                # Look for patterns like [{'expr': '...', 'result': '...'}]
-                pattern = r'\[\s*\{[^}]*\}\s*\]'
-                matches = re.findall(pattern, response_text)
-                if matches:
-                    print("Found pattern with regex:", matches[0])
-                    try:
-                        answers = json.loads(matches[0])
-                        print("Successfully parsed regex match with json.loads")
-                        parsing_successful = True
-                    except Exception as regex_json_error:
-                        print(f"JSON parsing of regex match failed: {regex_json_error}")
-                        try:
-                            answers = ast.literal_eval(matches[0])
-                            print("Successfully parsed regex match with ast.literal_eval")
-                            parsing_successful = True
-                        except Exception as regex_ast_error:
-                            print(f"ast.literal_eval of regex match failed: {regex_ast_error}")
-                else:
-                    print("No valid patterns found with regex")
-            except Exception as regex_error:
-                print(f"Regex pattern matching failed: {regex_error}")
-        
-        if not parsing_successful:
-            print("All parsing attempts failed")
-            return []
-        
-        print('Parsed answers:', answers)
-        
-        # Ensure answers is a list
-        if not isinstance(answers, list):
-            answers = [answers]
-        
-        # Process each answer
-        for answer in answers:
-            if isinstance(answer, dict):
-                if 'assign' not in answer:
-                    answer['assign'] = False
-            else:
-                print(f"Warning: answer is not a dict: {answer}")
-        
-        return answers
-        
+        png_bytes = _image_to_png_bytes(img)
+        response = client.models.generate_content(
+            model=_resolved_model_name,
+            contents=[prompt, types.Part.from_bytes(data=png_bytes, mime_type="image/png")],
+        )
     except Exception as e:
-        print(f"Error in analyze_image: {e}")
-        return [{
-            "expr": "Error",
-            "result": str(e),
-            "assign": False
-        }]
+        err_msg = str(e)
+        # 429 RESOURCE_EXHAUSTED: retry with next key
+        if ("429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg) and retry_count < len(GEMINI_API_KEYS) - 1:
+            if _rotate_key():
+                return analyze_image(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count+1)
+        
+        logger.exception("Gemini API call failed")
+        return {"results": [{"expr": "AI Error", "result": err_msg, "assign": False}], "usage": {}}
+
+    text = _extract_text(response)
+    usage = getattr(response, "usage_metadata", None)
+    usage_dict = {
+        "prompt_tokens": getattr(usage, "prompt_token_count", 0),
+        "completion_tokens": getattr(usage, "candidates_token_count", 0),
+        "total_tokens": getattr(usage, "total_token_count", 0),
+    }
+
+    if not text:
+        return {"results": [], "usage": usage_dict}
+
+    parsed = _parse_response(text)
+    if parsed is None:
+        return {"results": [{"expr": "Parse error", "result": "AI output invalid", "assign": False}], "usage": usage_dict}
+
+    normalized = []
+    for item in parsed:
+        if isinstance(item, dict) and "expr" in item and "result" in item:
+            item.setdefault("assign", False)
+            if include_steps: item.setdefault("steps", [])
+            normalized.append(item)
+
+    return {"results": normalized, "usage": usage_dict}
 

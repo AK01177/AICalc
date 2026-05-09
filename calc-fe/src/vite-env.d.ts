@@ -1,26 +1,11 @@
-
 /// <reference types="vite/client" />
 
+/* Optional env vars surfaced to the browser (must be prefixed with VITE_ in .env). */
 interface ImportMetaEnv {
-  readonly VITE_API_URL: string
+  readonly VITE_API_BASE?: string;
+  readonly VITE_MODEL_NAME?: string;
 }
 
 interface ImportMeta {
-  readonly env: ImportMetaEnv
-}
-
-declare global {
-  interface Window {
-    MathJax: {
-      typesetPromise?: () => Promise<void>;
-      startup?: {
-        defaultReady?: () => void;
-      };
-      Hub?: {
-        Queue: (args: [string, unknown]) => void;
-        Config: (config: Record<string, unknown>) => void;
-      };
-      [key: string]: unknown;
-    };
-  }
+  readonly env: ImportMetaEnv;
 }

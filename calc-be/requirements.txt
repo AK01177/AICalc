@@ -6,8 +6,8 @@ python-dotenv==1.0.1
 requests==2.32.3
 pillow==10.4.0
 
-# Google AI dependencies - optimized versions
-google-generativeai==0.7.2
+# Google AI dependencies
+google-genai==1.74.0
 grpcio>=1.60.0,<1.67.0
 grpcio-status>=1.60.0,<1.63.0
 google-api-core[grpc]==2.19.2
