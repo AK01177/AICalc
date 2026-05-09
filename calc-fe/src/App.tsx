@@ -123,7 +123,12 @@ export default function App() {
       const oCtx = offscreen.getContext("2d");
       if (oCtx) oCtx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
 
-      const resp = await fetch("/api/calculate", {
+      const apiBase = import.meta.env.VITE_API_BASE || "";
+      const endpoint = apiBase 
+        ? `${apiBase.replace(/\/$/, "")}/calculate` 
+        : "/api/calculate";
+
+      const resp = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -166,7 +171,12 @@ export default function App() {
         <div className="column">
           <div className="row">
             <strong>AICALC_v1.0</strong>
-            <span>[S]: {subject.toUpperCase()}</span>
+            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
+              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-xs font-medium text-white/70">
+                {import.meta.env.VITE_MODEL_NAME || "Gemini 2.5 Flash"}
+              </span>
+            </div>
           </div>
           <div className="row usage-info">
             <span>TOKENS: {usage.total.toLocaleString()} / 500K</span>
