@@ -133,6 +133,18 @@ export default function App() {
           include_steps: showSteps
         })
       });
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(`Server Error (${resp.status}): ${errorText.slice(0, 100)}`);
+      }
+
+      const contentType = resp.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await resp.text();
+        throw new Error(`Unexpected response format: ${text.slice(0, 100)}`);
+      }
+
       const data = await resp.json();
       setResults(data.data || []);
 
