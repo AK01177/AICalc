@@ -34,6 +34,8 @@ export default function App() {
   const [isEraser, setIsEraser] = useState(false);
   const [hasContent, setHasContent] = useState(false);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -44,6 +46,13 @@ export default function App() {
   useEffect(() => {
     const saved = localStorage.getItem("aicalc_total_tokens");
     if (saved) setTotalTokens(Number(saved));
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const initCanvas = useCallback(() => {
@@ -240,7 +249,7 @@ export default function App() {
         >
           {isEraser ? "ERASING" : "ERASER"}
         </button>
-        <div style={{ flex: 1 }} />
+        <div className="toolbar-spacer" style={{ flex: 1 }} />
         <span className="toolbar-label">MODEL: {import.meta.env.VITE_MODEL_NAME || "GEMINI 2.5 FLASH"}</span>
         <span className="toolbar-label">TOKENS: {totalTokens.toLocaleString()}</span>
       </div>
@@ -255,7 +264,13 @@ export default function App() {
           onPointerLeave={(e) => onPointer(e, "up")}
         />
 
-        <div className="controls">
+        {/* Backdrop for mobile controls */}
+        <div
+          className={`controls-backdrop${mobileControlsOpen ? " visible" : ""}`}
+          onClick={() => setMobileControlsOpen(false)}
+        />
+
+        <div className={`controls${mobileControlsOpen ? " mobile-open" : ""}`}>
           <div className="control-group">
             <span className="label">SUBJECT</span>
             <select value={subject} onChange={(e) => setSubject(e.target.value)}>
@@ -300,8 +315,37 @@ export default function App() {
           </div>
         </div>
 
+        {/* Mobile controls toggle button */}
+        {isMobile && !mobileControlsOpen && results.length === 0 && (
+          <button
+            className="mobile-controls-toggle"
+            onClick={() => setMobileControlsOpen(true)}
+            aria-label="Open drawing tools"
+          >
+            ⚙
+          </button>
+        )}
+
         {results.length > 0 && (
           <div className="results-area">
+            <button
+              className="results-close-btn"
+              onClick={() => setResults([])}
+              style={{
+                float: "right",
+                background: "var(--panel)",
+                border: "2px solid var(--border-light)",
+                borderRightColor: "var(--border-dark)",
+                borderBottomColor: "var(--border-dark)",
+                padding: "2px 8px",
+                fontFamily: "inherit",
+                fontSize: "11px",
+                cursor: "pointer",
+                marginBottom: "4px",
+              }}
+            >
+              ✕ CLOSE
+            </button>
             {results.map((r, i) => (
               <div key={i} className="card">
                 <div className="result-line">
