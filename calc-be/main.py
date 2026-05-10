@@ -1,4 +1,3 @@
-"""HTTP API for AICalc: image-based solve (`/calculate/*`), CORS setup, and health checks."""
 import os
 import logging
 import uvicorn
@@ -9,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from apps.calculator.route import router as calculator_router
 from constants import ENV, PORT, SERVER_URL
 
-# Force pure-python protobuf to avoid issues on some hosts
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-7s | %(message)s")
@@ -35,7 +33,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"message": "Internal Server Error", "data": [], "status": "error", "detail": str(exc)},
     )
 
-# CORS configuration for local development and production
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",

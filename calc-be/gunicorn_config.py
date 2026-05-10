@@ -1,4 +1,3 @@
-"""Production Gunicorn settings."""
 import os
 port = os.environ.get("PORT", "8900")
 workers = 1

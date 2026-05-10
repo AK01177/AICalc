@@ -1,9 +1,3 @@
-"""HTTP routes for the calculator backend.
-
-Endpoints:
-    POST /calculate -> analyze a hand-drawn image
-"""
-
 from __future__ import annotations
 
 import base64
@@ -22,7 +16,6 @@ router = APIRouter()
 
 
 def _decode_image(data_url: str) -> Image.Image:
-    """Decode a base64 data URL or plain base64 string into a PIL Image."""
     if not data_url:
         raise HTTPException(status_code=400, detail="No image data provided")
 

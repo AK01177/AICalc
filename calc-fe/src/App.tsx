@@ -264,7 +264,6 @@ export default function App() {
           onPointerLeave={(e) => onPointer(e, "up")}
         />
 
-        {/* Backdrop for mobile controls */}
         <div
           className={`controls-backdrop${mobileControlsOpen ? " visible" : ""}`}
           onClick={() => setMobileControlsOpen(false)}
@@ -315,7 +314,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Mobile controls toggle button */}
         {isMobile && !mobileControlsOpen && results.length === 0 && (
           <button
             className="mobile-controls-toggle"

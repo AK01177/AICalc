@@ -19,6 +19,6 @@ services:
       - key: SERVER_URL
         value: "0.0.0.0"
       - key: GEMINI_API_KEY
-        sync: false  # This will be set manually in Render dashboard
+        sync: false
     healthCheckPath: /
 

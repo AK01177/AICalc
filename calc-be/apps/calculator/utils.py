@@ -1,9 +1,3 @@
-"""Gemini-based image analysis for the AICalc backend.
-
-This module wraps the Google Gen AI client and produces a list of
-result dictionaries: ``[{"expr": "...", "result": "...", "assign": bool, "steps": [...]}, ...]``.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -52,7 +46,6 @@ _MODEL_PREFERENCE = ["gemini-2.5-flash"]
 _resolved_model_name: Optional[str] = None
 
 def _subject_prompt(subject: str) -> str:
-    """Return a subject-specific prompt fragment."""
     label = subject.lower() if subject else "math"
     return (
         f"You are an exact {label} solver. Be extremely precise. "
@@ -88,7 +81,6 @@ def _image_to_png_bytes(img: Image.Image) -> bytes:
 
 
 def _extract_text(response: Any) -> str:
-    """Safely extract text from a Gemini response object."""
     try:
         if getattr(response, "text", None):
             return response.text
@@ -103,7 +95,7 @@ def _extract_text(response: Any) -> str:
 
 
 def _parse_response(text: str) -> Optional[List[Any]]:
-    """Try several strategies to coerce model output into a Python list."""
+    """Try json.loads first, fall back to literal_eval, then regex extract."""
     if not text: return None
     cleaned = _FENCE_RE.sub("", text).strip()
     for parser in (json.loads, ast.literal_eval):
@@ -127,7 +119,6 @@ def analyze_image(
     include_steps: bool = True,
     retry_count: int = 0
 ) -> Dict[str, Any]:
-    """Run Gemini on the image and return results with key rotation."""
     client = _get_client()
     if not client:
         return {"results": [{"expr": "Error", "result": "No API key", "assign": False}], "usage": {}}
@@ -146,7 +137,6 @@ def analyze_image(
         )
     except Exception as e:
         err_msg = str(e)
-        # 429 RESOURCE_EXHAUSTED: retry with next key
         if ("429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg) and retry_count < len(GEMINI_API_KEYS) - 1:
             if _rotate_key():
                 return analyze_image(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count+1)

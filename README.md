@@ -1,71 +1,10 @@
 # AICalc
 
-AICalc is a simple drawing-based calculator. You choose a subject, draw a problem on the canvas, and the app sends the image to a FastAPI backend for an AI-generated answer.
+Draw a math/physics/chemistry problem on the canvas and get the answer from Gemini.
 
-The project is intentionally small and focused. It supports three subjects:
+Built with React + Vite on the frontend, FastAPI on the backend. Uses `perfect-freehand` for smooth drawing and KaTeX to render the math output.
 
-- Math
-- Physics
-- Chemistry
-
-## What It Does
-
-- Lets the user draw on a canvas
-- Supports pen color, brush size, clear, and eraser controls
-- Sends the drawing as an image to the backend
-- Uses Gemini to read the image and return a structured answer
-- Renders math output in the frontend with KaTeX
-- Shows the AI model name and keeps a simple local token counter
-
-## Subjects
-
-### Math
-
-Useful for simple handwritten expressions, equations, and arithmetic-style problems.
-
-Examples:
-
-- `2x + 5 = 15`
-- `12 / 3 + 4`
-- `x^2 + 5x + 6 = 0`
-
-### Physics
-
-Useful for short formula-based questions where the values are clearly written.
-
-Examples:
-
-- `F = ma`
-- `v = d / t`
-- `E = mgh`
-
-### Chemistry
-
-Useful for basic chemistry formula questions and simple written equations.
-
-Examples:
-
-- `n = m / M`
-- `c = n / V`
-- simple balancing or calculation prompts
-
-## How It Works
-
-1. Select a subject: Math, Physics, or Chemistry.
-2. Draw the problem on the canvas.
-3. Click Calculate.
-4. The frontend sends the canvas image to the backend.
-5. The backend asks Gemini to interpret the image and returns the result.
-
-## Tech Stack
-
-- Frontend: React, TypeScript, Vite
-- Backend: FastAPI, Python
-- Drawing: HTML canvas with `perfect-freehand`
-- AI: Google Gemini 2.5 Flash by default
-- Math rendering: KaTeX
-
-## Setup
+## How to run
 
 ### Backend
 
@@ -77,10 +16,10 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Create `calc-be/.env`:
+You need a `.env` file in `calc-be/` with your Gemini key:
 
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
+```
+GEMINI_API_KEY=your_key_here
 ```
 
 ### Frontend
@@ -91,56 +30,41 @@ npm install
 npm run dev
 ```
 
-Optional frontend env file, `calc-fe/.env.local`:
+You can optionally create `calc-fe/.env` to point to the backend:
 
-```env
+```
 VITE_API_BASE=http://localhost:8900
-VITE_MODEL_NAME=GEMINI 2.5 FLASH
 ```
 
-If `VITE_API_BASE` is not set, the frontend uses `/api/calculate`, which works with the Vite proxy or deployment rewrite.
+If not set, the frontend uses the Vite proxy (`/api/calculate`).
 
-The frontend also displays a local token counter using the `usage.total_tokens` value returned by the backend. This is only for visibility during demos and is stored in the browser's local storage.
+## Features
+
+- Draw on canvas, pick colors, adjust brush size
+- Eraser tool
+- Subject picker (math, physics, chemistry)
+- Step-by-step solutions toggle
+- LaTeX rendering with KaTeX
+- Token counter (stored in localStorage)
+- Mobile responsive
 
 ## API
 
-### `POST /calculate`
-
-Request body:
+`POST /calculate` with JSON body:
 
 ```json
 {
-  "image": "base64_image_string",
-  "dict_of_vars": {},
+  "image": "data:image/png;base64,...",
   "subject": "math",
-  "include_steps": false
+  "dict_of_vars": {},
+  "include_steps": true
 }
 ```
 
-Supported subjects:
-
-```text
-math | physics | chemistry
-```
-
-Response shape:
-
-```json
-{
-  "message": "Image processed successfully",
-  "data": [],
-  "usage": {},
-  "status": "success"
-}
-```
+Returns results as a JSON array with `expr`, `result`, and optional `steps`.
 
 ## Limitations
 
-- Works best with clear handwriting and simple problems.
-- The AI can make mistakes if the drawing is unclear.
-- It is not meant to replace a full calculator or symbolic math engine.
-- Chemistry and physics support is focused on simple formula-based problems.
-
-## Why I Built This
-
-I built this project to learn how to connect a React drawing interface with a Python API, send image data from frontend to backend, and display AI-generated math results in a clean UI.
+- Works best with clear handwriting
+- Simple problems only — not a replacement for Wolfram Alpha
+- Chemistry/physics support is basic (formula-level)

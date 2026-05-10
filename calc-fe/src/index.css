@@ -18,7 +18,6 @@
 body {
   margin: 0;
   background: #008080;
-  /* Classic Teal Desktop Color */
   color: var(--text);
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
@@ -230,12 +229,10 @@ input[type="range"] {
   cursor: pointer;
 }
 
-/* ===== MOBILE TOGGLE BUTTON ===== */
 .mobile-controls-toggle {
   display: none;
 }
 
-/* ===== MOBILE RESPONSIVE ===== */
 @media (max-width: 768px) {
   :root {
     --controls-height: 0px;
@@ -276,7 +273,6 @@ input[type="range"] {
     font-size: 9px;
   }
 
-  /* Hide model/token info on very small screens to save space */
   .toolbar-spacer {
     display: none;
   }
@@ -316,7 +312,6 @@ input[type="range"] {
     min-height: 0;
   }
 
-  /* Controls panel — slides up from bottom */
   .controls {
     position: fixed;
     top: auto;
@@ -392,7 +387,6 @@ input[type="range"] {
     height: 24px;
   }
 
-  /* Results panel */
   .results-area {
     position: fixed;
     bottom: 0;
@@ -414,7 +408,6 @@ input[type="range"] {
   }
 }
 
-/* Extra-small phones (iPhone SE, Galaxy S series, etc.) */
 @media (max-width: 380px) {
   header strong {
     font-size: 10px;
@@ -435,7 +428,6 @@ input[type="range"] {
   }
 }
 
-/* Landscape orientation on mobile */
 @media (max-width: 768px) and (orientation: landscape) {
   header {
     height: 24px;
@@ -470,7 +462,6 @@ input[type="range"] {
   }
 }
 
-/* Desktop-only: hide elements meant for mobile */
 .controls-backdrop {
   display: none;
 }

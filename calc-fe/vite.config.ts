@@ -1,7 +1,6 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// Dev: `/api/*` proxies to FastAPI (`VITE_DEV_API_TARGET` or :8900) so fetch("/api/calculate") works without CORS.
 export default defineConfig({
   plugins: [react()],
   server: {
