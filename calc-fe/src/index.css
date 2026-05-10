@@ -229,35 +229,48 @@ input[type="checkbox"]:checked::after {
 @media (max-width: 768px) {
   .controls {
     top: auto;
-    bottom: 0;
-    left: 0;
-    width: 100%;
+    bottom: 20px;
+    left: 10px;
+    right: 10px;
+    width: auto;
     flex-direction: row;
     overflow-x: auto;
-    padding: 12px 15px calc(12px + env(safe-area-inset-bottom, 0px));
-    gap: 15px;
-    align-items: center;
-    scrollbar-width: thin;
+    padding: 15px;
+    padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px));
+    gap: 20px;
+    align-items: flex-start;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     margin: 0;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
+    border: 2px solid var(--border-light);
+    border-right-color: var(--border-dark);
+    border-bottom-color: var(--border-dark);
     background: var(--panel);
-    box-shadow: 0 -1px 0 var(--border-light), 0 -2px 0 var(--border-dark);
+    box-shadow: 2px 2px 0 var(--border-black);
+    border-radius: 4px;
+  }
+
+  .controls::-webkit-scrollbar {
+    display: none;
   }
 
   .control-group {
-    min-width: 140px;
+    min-width: 150px;
     padding-bottom: 0;
     border-right: 1px solid var(--border-dark);
-    padding-right: 15px;
+    padding-right: 20px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: stretch;
+  }
+
+  .control-group:last-child {
+    border-right: none;
   }
 
   .results-area {
-    bottom: 140px;
+    bottom: 160px;
     left: 10px;
     right: 10px;
     width: auto;
