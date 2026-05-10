@@ -4,7 +4,7 @@ import "katex/dist/katex.min.css";
 import { InlineMath } from "react-katex";
 
 const SUBJECTS = ["math", "physics", "chemistry"];
-const SWATCHES = ["#00ff00", "#ff0000", "#00ffff", "#ffff00", "#ff00ff", "#ffffff"];
+const SWATCHES = ["#000080", "#000000", "#ff0000", "#008000", "#800080", "#808080"];
 
 type CalculationStep = {
   explanation: string;
@@ -58,7 +58,7 @@ export default function App() {
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, rect.width, rect.height);
     ctxRef.current = ctx;
   }, []);
@@ -119,7 +119,7 @@ export default function App() {
 
     if (!stroke.length) return;
 
-    ctx.fillStyle = isEraser ? "#000000" : color;
+    ctx.fillStyle = isEraser ? "#ffffff" : color;
     ctx.beginPath();
     ctx.moveTo(stroke[0][0], stroke[0][1]);
     stroke.forEach(([x, y]) => ctx.lineTo(x, y));

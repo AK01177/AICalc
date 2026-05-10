@@ -1,9 +1,11 @@
 :root {
-  --bg: #000;
-  --panel: rgba(0, 20, 0, 0.9);
-  --accent: #0f0;
-  --text: #0f0;
-  --border: #0f0;
+  --bg: #c0c0c0;
+  --panel: #c0c0c0;
+  --accent: #000080;
+  --text: #000000;
+  --border-light: #ffffff;
+  --border-dark: #808080;
+  --border-black: #000000;
   font-family: 'Share Tech Mono', monospace;
 }
 
@@ -11,10 +13,9 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: #008080; /* Classic Teal Desktop Color */
   color: var(--text);
   overflow: hidden;
-  text-transform: uppercase;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -22,36 +23,46 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
+  padding: 4px;
 }
 
 header {
-  padding: 8px 15px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
+  padding: 4px 8px;
+  background: linear-gradient(90deg, #000080, #1084d0);
+  border: 2px solid var(--border-light);
+  border-right-color: var(--border-dark);
+  border-bottom-color: var(--border-dark);
   display: flex;
   justify-content: space-between;
   align-items: center;
   z-index: 50;
-  color: var(--text);
-  box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+  color: white;
+  height: 32px;
 }
 
 .column { display: flex; flex-direction: column; }
-.row { display: flex; align-items: center; gap: 12px; }
+.row { display: flex; align-items: center; gap: 8px; }
 .justify-between { justify-content: space-between; }
 .wrap { flex-wrap: wrap; }
 
 .top-toolbar {
   background: var(--panel) !important;
-  border-bottom: 1px dashed var(--border) !important;
-  padding: 6px 12px !important;
+  border: 2px solid var(--border-light) !important;
+  border-right-color: var(--border-dark) !important;
+  border-bottom-color: var(--border-dark) !important;
+  padding: 4px 8px !important;
+  margin-top: 2px;
 }
 
 .canvas-wrap {
   flex: 1;
   position: relative;
-  background: #000;
+  background: #fff;
+  margin-top: 4px;
+  border: 2px solid var(--border-dark);
+  border-right-color: var(--border-light);
+  border-bottom-color: var(--border-light);
+  box-shadow: inset 1px 1px var(--border-black);
   overflow: hidden;
 }
 
@@ -63,89 +74,102 @@ canvas {
 
 .controls {
   position: absolute;
-  top: 15px;
-  left: 15px;
-  width: 220px;
+  top: 10px;
+  left: 10px;
+  width: 240px;
   background: var(--panel);
-  border: 1px solid var(--border);
-  padding: 15px;
+  border: 2px solid var(--border-light);
+  border-right-color: var(--border-dark);
+  border-bottom-color: var(--border-dark);
+  box-shadow: 1px 1px 0 0 var(--border-black);
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
   z-index: 100;
-  box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
 }
 
 .control-group { 
   display: flex; 
   flex-direction: column; 
-  gap: 8px; 
-  border-bottom: 1px dashed rgba(0, 255, 0, 0.2);
-  padding-bottom: 12px;
+  gap: 6px; 
 }
-.control-group:last-child { border-bottom: none; }
 
-.label { font-size: 10px; font-weight: bold; opacity: 0.7; }
-.val { font-size: 10px; color: var(--accent); }
+.label { font-size: 11px; font-weight: bold; color: #000; }
+.val { font-size: 11px; color: var(--accent); }
 
 .swatch {
   width: 22px;
   height: 22px;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border-dark);
+  border-right-color: var(--border-light);
+  border-bottom-color: var(--border-light);
   cursor: pointer;
 }
 .swatch.active { 
-  outline: 2px solid #fff;
+  border: 2px solid var(--border-light);
+  border-right-color: var(--border-dark);
+  border-bottom-color: var(--border-dark);
+  outline: 1px dotted black;
   outline-offset: -4px;
 }
 
 .results-area {
   position: absolute;
-  bottom: 20px;
-  right: 20px;
+  bottom: 10px;
+  right: 10px;
   width: 350px;
   max-height: 50vh;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  padding: 15px;
+  background: #fff;
+  border: 2px solid var(--border-dark);
+  border-right-color: var(--border-light);
+  border-bottom-color: var(--border-light);
+  box-shadow: inset 1px 1px var(--border-black);
+  padding: 12px;
   z-index: 100;
   overflow-y: auto;
-  font-size: 13px;
-  box-shadow: 0 0 30px rgba(0, 255, 0, 0.15);
+  font-size: 12px;
+  color: #000;
 }
 
 .card {
-  padding: 10px 0;
-  border-bottom: 1px dashed var(--border);
+  padding: 8px 0;
+  border-bottom: 1px solid #dfdfdf;
 }
 .card:last-child { border-bottom: none; }
 
 button {
-  background: #000;
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 6px 14px;
-  font-weight: bold;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 11px;
-  transition: all 0.2s;
-}
-
-button:hover:not(:disabled) {
-  background: var(--text);
+  background: var(--panel);
   color: #000;
-  box-shadow: 0 0 10px var(--accent);
+  border: 2px solid var(--border-light);
+  border-right-color: var(--border-dark);
+  border-bottom-color: var(--border-dark);
+  box-shadow: 1px 1px 0 0 var(--border-black);
+  padding: 4px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 
-button:disabled { opacity: 0.3; }
+button:active:not(:disabled) {
+  border: 2px solid var(--border-dark);
+  border-right-color: var(--border-light);
+  border-bottom-color: var(--border-light);
+  box-shadow: none;
+  padding: 5px 11px 3px 13px;
+}
+
+button:disabled { color: #808080; }
 
 select, input[type="range"] {
   width: 100%;
-  background: #000;
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 4px;
+  background: #fff;
+  border: 2px solid var(--border-dark);
+  border-right-color: var(--border-light);
+  border-bottom-color: var(--border-light);
+  box-shadow: inset 1px 1px var(--border-black);
+  color: #000;
+  padding: 2px;
   outline: none;
   font-family: inherit;
 }
@@ -154,7 +178,7 @@ select, input[type="range"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -166,14 +190,13 @@ select, input[type="range"] {
     width: 100%;
     flex-direction: row;
     overflow-x: auto;
-    padding: 15px;
-    gap: 25px;
+    padding: 12px;
+    gap: 20px;
     scrollbar-width: none;
-    border-top: 1px solid var(--border);
     border-radius: 0;
   }
   .controls::-webkit-scrollbar { display: none; }
-  .control-group { min-width: 140px; border-bottom: none; border-right: 1px dashed rgba(0, 255, 0, 0.2); padding-right: 15px; }
+  .control-group { min-width: 140px; border-right: 1px solid var(--border-dark); padding-right: 15px; }
   
   .results-area {
     bottom: 130px;
