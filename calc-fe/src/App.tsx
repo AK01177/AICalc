@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStroke } from "perfect-freehand";
+import 'katex/dist/katex.min.css';
+import { InlineMath } from 'react-katex';
 
 const SUBJECTS = ["math", "physics", "chemistry"];
 const SWATCHES = ["#000000", "#000080", "#800000", "#008000", "#808000", "#808080"];
@@ -241,10 +243,12 @@ export default function App() {
           <div className="results-area">
             {results.map((r, i) => (
               <div key={i} className="card">
-                <div>{r.expr} = <strong>{r.result}</strong></div>
+                <div>
+                  <InlineMath math={r.expr} /> = <strong><InlineMath math={r.result} /></strong>
+                </div>
                 {showSteps && r.steps?.map((s: any, j: number) => (
-                  <div key={j} style={{ fontSize: '10px', marginTop: '4px', color: '#444' }}>
-                    &gt; {s.explanation}
+                  <div key={j} style={{ fontSize: '11px', marginTop: '6px', color: '#333', background: '#f9f9f9', padding: '4px', borderLeft: '2px solid #000080' }}>
+                    <InlineMath math={s.explanation} />
                   </div>
                 ))}
               </div>

@@ -57,6 +57,7 @@ def _subject_prompt(subject: str) -> str:
     return (
         f"You are an exact {label} solver. Be extremely precise. "
         "Provide final numerical results, simplified expressions, or exact constants (pi, e). "
+        "Use valid LaTeX for all mathematical expressions and results. "
         "For equations, return one dict per variable with 'assign': True."
     )
 
@@ -66,13 +67,13 @@ def _build_prompt(
 ) -> str:
     vars_json = json.dumps(dict_of_vars or {}, ensure_ascii=False)
     steps_rule = (
-        "If include_steps is true, provide a concise 'steps' array with 'explanation'. "
+        "If include_steps is true, provide a concise 'steps' array with 'explanation' using LaTeX for all math symbols. "
         "If false, do NOT provide steps."
     )
     return (
         f"Variables: {vars_json}. {steps_rule} "
-        "FORMAT: JSON array: [{'expr': '...', 'result': '...', 'assign': bool, 'steps': []}]. "
-        "No prose or markdown. " + _subject_prompt(subject)
+        "FORMAT: JSON array: [{'expr': 'LaTeX string', 'result': 'LaTeX string', 'assign': bool, 'steps': []}]. "
+        "No prose or markdown. Always use LaTeX for math symbols. Do not include LaTeX delimiters like $ or $$. " + _subject_prompt(subject)
     )
 
 

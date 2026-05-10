@@ -9,8 +9,8 @@
   font-family: "Share Tech Mono", monospace;
 }
 
-* { 
-  box-sizing: border-box; 
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -43,10 +43,24 @@ header {
   text-shadow: 1px 1px 0 #000000;
 }
 
-.column { display: flex; flex-direction: column; }
-.row { display: flex; align-items: center; gap: 8px; }
-.justify-between { justify-content: space-between; }
-.wrap { flex-wrap: wrap; }
+.column {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
 
 .canvas-wrap {
   flex: 1;
@@ -80,16 +94,16 @@ canvas {
   z-index: 100;
 }
 
-.control-group { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 8px; 
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding-bottom: 8px;
 }
 
-.label { 
-  font-size: 11px; 
-  font-weight: bold; 
+.label {
+  font-size: 11px;
+  font-weight: bold;
   color: var(--text);
 }
 
@@ -101,7 +115,8 @@ canvas {
   border-bottom-color: var(--border-light);
   cursor: pointer;
 }
-.swatch.active { 
+
+.swatch.active {
   border: 2px solid var(--border-light);
   border-right-color: var(--border-dark);
   border-bottom-color: var(--border-dark);
@@ -113,7 +128,7 @@ canvas {
   position: absolute;
   bottom: 20px;
   right: 20px;
-  width: 320px;
+  width: 400px;
   max-height: 50vh;
   background: #ffffff;
   border: 2px solid var(--border-dark);
@@ -131,7 +146,10 @@ canvas {
   padding: 8px 0;
   border-bottom: 1px solid #dfdfdf;
 }
-.card:last-child { border-bottom: none; }
+
+.card:last-child {
+  border-bottom: none;
+}
 
 button {
   background: var(--panel);
@@ -161,7 +179,8 @@ button:disabled {
   text-shadow: 1px 1px 0 var(--border-light);
 }
 
-select, input[type="range"] {
+select,
+input[type="range"] {
   width: 100%;
   background: #ffffff;
   border: 2px solid var(--border-dark);
@@ -223,8 +242,14 @@ input[type="checkbox"]:checked::after {
     border-right: none;
     border-bottom: none;
   }
-  .control-group { min-width: 140px; padding-bottom: 0; border-right: 1px solid var(--border-dark); padding-right: 15px; }
-  
+
+  .control-group {
+    min-width: 140px;
+    padding-bottom: 0;
+    border-right: 1px solid var(--border-dark);
+    padding-right: 15px;
+  }
+
   .results-area {
     bottom: 140px;
     left: 10px;
