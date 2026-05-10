@@ -234,13 +234,16 @@ input[type="checkbox"]:checked::after {
     width: 100%;
     flex-direction: row;
     overflow-x: auto;
-    padding: 10px;
+    padding: 12px 15px calc(12px + env(safe-area-inset-bottom, 0px));
     gap: 15px;
+    align-items: center;
     scrollbar-width: thin;
     margin: 0;
     border-left: none;
     border-right: none;
     border-bottom: none;
+    background: var(--panel);
+    box-shadow: 0 -1px 0 var(--border-light), 0 -2px 0 var(--border-dark);
   }
 
   .control-group {
@@ -248,6 +251,9 @@ input[type="checkbox"]:checked::after {
     padding-bottom: 0;
     border-right: 1px solid var(--border-dark);
     padding-right: 15px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 
   .results-area {
@@ -256,5 +262,10 @@ input[type="checkbox"]:checked::after {
     right: 10px;
     width: auto;
     max-height: 30vh;
+  }
+
+  .top-toolbar {
+    padding: 8px 6px !important;
+    gap: 4px !important;
   }
 }

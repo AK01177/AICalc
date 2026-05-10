@@ -14,6 +14,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSteps, setShowSteps] = useState(false);
+  const [isEraser, setIsEraser] = useState(false);
   const [usage, setUsage] = useState({ total: 0, last: 0 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -84,7 +85,7 @@ export default function App() {
       smoothing: 0.5,
       streamline: 0.5
     });
-    ctx.fillStyle = color;
+    ctx.fillStyle = isEraser ? "#ffffff" : color;
     ctx.beginPath();
     ctx.moveTo(stroke[0][0], stroke[0][1]);
     stroke.forEach(([x, y]) => ctx.lineTo(x, y));
@@ -178,13 +179,24 @@ export default function App() {
           <span>TOKENS: {usage.total.toLocaleString()}</span>
         </div>
       </header>
-      <div className="row" style={{ background: '#c0c0c0', padding: '2px 6px', borderBottom: '1px solid #808080' }}>
+      <div className="row top-toolbar" style={{ background: '#c0c0c0', padding: '2px 6px', borderBottom: '1px solid #808080' }}>
         <button onClick={solve} disabled={loading || !hasContent}>{loading ? "BUSY..." : "CALCULATE"}</button>
         <button onClick={() => {
           initCanvas();
           setHasContent(false);
           setResults([]);
+          setIsEraser(false);
         }}>CLEAR</button>
+        <button
+          onClick={() => setIsEraser(!isEraser)}
+          style={{
+            background: isEraser ? '#808080' : '#c0c0c0',
+            color: isEraser ? '#fff' : '#000',
+            boxShadow: isEraser ? 'inset 2px 2px #000' : '1px 1px 0 0 var(--border-black)'
+          }}
+        >
+          {isEraser ? "ERASING" : "ERASER"}
+        </button>
         <div style={{ flex: 1 }} />
         <div className="flex items-center gap-2 px-2 py-0.5 bg-white border-2 border-gray-400 inset-shadow">
           <span className="text-[10px] font-bold text-gray-600">
@@ -225,7 +237,10 @@ export default function App() {
                 <div key={s}
                   className={`swatch ${color === s ? "active" : ""}`}
                   style={{ background: s }}
-                  onClick={() => setColor(s)}
+                  onClick={() => {
+                    setColor(s);
+                    setIsEraser(false);
+                  }}
                 />
               ))}
             </div>
