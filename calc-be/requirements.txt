@@ -14,4 +14,4 @@ proto-plus
 protobuf
 pydantic>=2.8.2
 starlette
-anyio>=4.8.0
+anyio>=4.8.0

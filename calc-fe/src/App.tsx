@@ -55,6 +55,59 @@ export default function App() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Warm up backend on mount and keep it alive to prevent Render cold starts
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_BASE || "";
+    const healthEndpoint = apiBase ? `${apiBase.replace(/\/$/, "")}/healthz` : "/api/healthz";
+
+    // Initial warmup with retries
+    const warmupBackend = async () => {
+      let retries = 0;
+      const maxRetries = 5;
+      
+      const attemptWarmup = async () => {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+          
+          const response = await fetch(healthEndpoint, {
+            method: "GET",
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (response.ok) {
+            console.log("Backend is ready");
+            return true;
+          }
+        } catch (e) {
+          // Silently ignore errors during warmup
+        }
+        
+        // Retry with exponential backoff
+        if (retries < maxRetries) {
+          retries++;
+          const delay = Math.min(1000 * Math.pow(1.5, retries), 10000);
+          setTimeout(attemptWarmup, delay);
+        }
+      };
+      
+      attemptWarmup();
+    };
+    
+    warmupBackend();
+
+    // Keep-alive ping every 14 minutes to prevent Render free tier spin-down (happens after 15 mins)
+    const keepAliveInterval = setInterval(() => {
+      fetch(healthEndpoint, { method: "GET" }).catch(() => {
+        // Silently ignore errors
+      });
+    }, 14 * 60 * 1000); // 14 minutes
+
+    return () => clearInterval(keepAliveInterval);
+  }, []);
+
   const initCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -164,57 +217,86 @@ export default function App() {
     setLoading(true);
     setError(null);
 
-    try {
-      const maxDim = 768;
-      const offscreen = document.createElement("canvas");
-      const scale = Math.min(1, maxDim / Math.max(canvas.width, canvas.height));
-      offscreen.width = canvas.width * scale;
-      offscreen.height = canvas.height * scale;
+    let lastError: Error | null = null;
+    const maxRetries = 2;
 
-      const oCtx = offscreen.getContext("2d");
-      if (oCtx) oCtx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const maxDim = 768;
+        const offscreen = document.createElement("canvas");
+        const scale = Math.min(1, maxDim / Math.max(canvas.width, canvas.height));
+        offscreen.width = canvas.width * scale;
+        offscreen.height = canvas.height * scale;
 
-      const apiBase = import.meta.env.VITE_API_BASE || "";
-      const endpoint = apiBase ? `${apiBase.replace(/\/$/, "")}/calculate` : "/api/calculate";
+        const oCtx = offscreen.getContext("2d");
+        if (oCtx) oCtx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
 
-      const resp = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image: offscreen.toDataURL("image/png"),
-          subject,
-          dict_of_vars: {},
-          include_steps: showSteps,
-        }),
-      });
+        const apiBase = import.meta.env.VITE_API_BASE || "";
+        const endpoint = apiBase ? `${apiBase.replace(/\/$/, "")}/calculate` : "/api/calculate";
 
-      if (!resp.ok) {
-        const errorText = await resp.text();
-        throw new Error(`Server Error (${resp.status}): ${errorText.slice(0, 100)}`);
-      }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
-      const contentType = resp.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await resp.text();
-        throw new Error(`Unexpected response format: ${text.slice(0, 100)}`);
-      }
-
-      const data = (await resp.json()) as CalculateResponse;
-      setResults(data.data || []);
-
-      const usedTokens = data.usage?.total_tokens || 0;
-      if (usedTokens > 0) {
-        setTotalTokens((currentTotal) => {
-          const nextTotal = currentTotal + usedTokens;
-          localStorage.setItem("aicalc_total_tokens", String(nextTotal));
-          return nextTotal;
+        const resp = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image: offscreen.toDataURL("image/png"),
+            subject,
+            dict_of_vars: {},
+            include_steps: showSteps,
+          }),
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
+
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          throw new Error(`Server Error (${resp.status}): ${errorText.slice(0, 100)}`);
+        }
+
+        const contentType = resp.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await resp.text();
+          throw new Error(`Unexpected response format: ${text.slice(0, 100)}`);
+        }
+
+        const data = (await resp.json()) as CalculateResponse;
+        setResults(data.data || []);
+
+        const usedTokens = data.usage?.total_tokens || 0;
+        if (usedTokens > 0) {
+          setTotalTokens((currentTotal) => {
+            const nextTotal = currentTotal + usedTokens;
+            localStorage.setItem("aicalc_total_tokens", String(nextTotal));
+            return nextTotal;
+          });
+        }
+        
+        return; // Success, exit
+      } catch (e: unknown) {
+        lastError = e instanceof Error ? e : new Error("Unknown error");
+        
+        // Only retry on timeout or network errors, not on 4xx/5xx response errors
+        if (!(lastError.message.includes("Server Error") && lastError.message.includes("(4") || lastError.message.includes("(5")) && attempt < maxRetries) {
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          continue;
+        }
+        
+        break; // Don't retry on server errors
       }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setLoading(false);
     }
+
+    // If we get here, all retries failed
+    const errorMsg = lastError?.message || "Something went wrong";
+    const fullErrorMsg = errorMsg.includes("Server Error") 
+      ? errorMsg 
+      : "Backend is starting up. Please try again in a few seconds.";
+    
+    setError(fullErrorMsg);
+    setLoading(false);
   };
 
   return (
