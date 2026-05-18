@@ -19,6 +19,8 @@ dist-ssr/
 calc-fe/.env*
 calc-be/.env
 
+Interview.md
+
 .vscode/
 .idea/
 *.swp
