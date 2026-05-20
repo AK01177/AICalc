@@ -58,7 +58,6 @@ export default function App() {
   const pointsRef = useRef<number[][]>([]);
   const drawingRef = useRef(false);
   const snapshotRef = useRef<ImageData | null>(null);
-  const parseErrorRetryRef = useRef(0);
 
   useEffect(() => {
     const saved = localStorage.getItem("aicalc_total_tokens");
@@ -373,19 +372,6 @@ export default function App() {
         }
 
         const data = (await resp.json()) as CalculateResponse;
-        
-        // Check for parse error and auto-retry once
-        if (data.data?.length === 1 && data.data[0].expr === "Parse error" && parseErrorRetryRef.current === 0) {
-          parseErrorRetryRef.current++;
-          console.warn("Parse error detected, retrying with stricter format...");
-          if (preSnapshot && ctx) ctx.putImageData(preSnapshot, 0, 0);
-          setLoading(false);
-          await new Promise(resolve => setTimeout(resolve, 500));
-          parseErrorRetryRef.current = 0;
-          return solve();
-        }
-        
-        parseErrorRetryRef.current = 0;
         setResults(data.data || []);
 
         const usedTokens = data.usage?.total_tokens || 0;
