@@ -59,10 +59,10 @@ def _build_prompt(
     subject: str, dict_of_vars: Dict[str, Any], *, include_steps: bool = True
 ) -> str:
     vars_json = json.dumps(dict_of_vars or {}, ensure_ascii=False)
-    steps_rule = (
-        "If include_steps is true, provide a concise 'steps' array with 'explanation' using LaTeX for all math symbols. "
-        "If false, do NOT provide steps."
-    )
+    if include_steps:
+        steps_rule = "Provide a concise 'steps' array where each item has an 'explanation' field using LaTeX for math."
+    else:
+        steps_rule = "Do NOT include a 'steps' array in your response. Return only 'expr', 'result', and 'assign'."
     return (
         f"Variables: {vars_json}. {steps_rule} "
         "FORMAT: JSON array: [{'expr': 'LaTeX string', 'result': 'LaTeX string', 'assign': bool, 'steps': []}]. "
