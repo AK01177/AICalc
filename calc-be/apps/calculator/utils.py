@@ -116,7 +116,8 @@ def analyze_image(
     subject: str = "math",
     *,
     include_steps: bool = True,
-    retry_count: int = 0
+    retry_count: int = 0,
+    parse_retry_count: int = 0
 ) -> Dict[str, Any]:
     client = _get_client()
     if not client:
@@ -126,7 +127,13 @@ def analyze_image(
     if _resolved_model_name is None:
         _resolved_model_name = GEMINI_MODEL or _DEFAULT_MODEL_NAME
 
-    prompt = _build_prompt(subject, dict_of_vars or {}, include_steps=include_steps)
+    # Use stricter prompt on parse retry
+    if parse_retry_count > 0:
+        prompt = _build_prompt(subject, dict_of_vars or {}, include_steps=include_steps)
+        prompt += "\n\nCRITICAL: Return ONLY a valid JSON array. No explanations, no markdown, no text before or after. Start with [ and end with ]."
+        logger.warning(">>> Parse failure detected, retrying with stricter prompt (attempt %d)", parse_retry_count)
+    else:
+        prompt = _build_prompt(subject, dict_of_vars or {}, include_steps=include_steps)
     
     try:
         png_bytes = _image_to_png_bytes(img)
@@ -138,7 +145,7 @@ def analyze_image(
         err_msg = str(e)
         if ("429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg) and retry_count < len(GEMINI_API_KEYS) - 1:
             if _rotate_key():
-                return analyze_image(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count+1)
+                return analyze_image(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count+1, parse_retry_count=parse_retry_count)
         
         logger.exception("Gemini API call failed")
         return {"results": [{"expr": "AI Error", "result": err_msg, "assign": False}], "usage": {}}
@@ -156,6 +163,12 @@ def analyze_image(
 
     parsed = _parse_response(text)
     if parsed is None:
+        # Retry once with stricter prompt on parse failure
+        if parse_retry_count < 1:
+            return analyze_image(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count, parse_retry_count=parse_retry_count+1)
+        
+        # If strict retry also failed, return error
+        logger.error(">>> Parse failed even with strict prompt. Raw response: %s", text[:200])
         return {"results": [{"expr": "Parse error", "result": "AI output invalid", "assign": False}], "usage": usage_dict}
 
     normalized = []

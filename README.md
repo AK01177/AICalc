@@ -1,330 +1,247 @@
-# 🧮 AICalc - AI-Powered Calculator
+# AICalc - AI-Powered Calculator
 
-Draw a math, physics, or chemistry problem on the canvas and get instant solutions powered by Google Gemini AI.
+Draw math, physics, or chemistry problems and get instant AI solutions.
 
-**Live Demo:** [https://ai-calc-dusky.vercel.app](https://ai-calc-dusky.vercel.app)
-
----
-
-## ✨ Features
-
-- 🎨 **Freehand Drawing Canvas** - Smooth drawing experience with perfect stroke rendering
-- 🤖 **AI Problem Solving** - Uses Google Gemini 2.5 Flash to analyze and solve problems
-- 📊 **Multi-Subject Support** - Math, Physics, and Chemistry problems
-- 📝 **Step-by-Step Solutions** - Optional detailed explanation of each step
-- 🎯 **Multiple Colors & Eraser** - Color-coded drawing with eraser tool
-- 📱 **Responsive Design** - Works on desktop and mobile devices
-- ⚡ **Token Tracking** - Keep track of API usage
-- 🚀 **Optimized Performance** - Backend warm-up and keep-alive to minimize cold starts
+**Live:** [https://ai-calc-dusky.vercel.app](https://ai-calc-dusky.vercel.app) | **Backend:** https://aicalc-nvif.onrender.com
 
 ---
 
-## 🏗️ Architecture
+## Overview
+
+| Aspect | Details |
+|--------|---------|
+| **Purpose** | Draw problem → Get AI solution + steps |
+| **Model** | Google Gemini 2.5 Flash |
+| **Subjects** | Math, Physics, Chemistry |
+| **Frontend** | React 18 + TypeScript + Vite (v5.4.0) + perfect-freehand + react-katex |
+| **Backend** | FastAPI + Uvicorn + Gunicorn (Python 3.9+) |
+| **Input** | Base64 image (PNG) |
+| **Output** | JSON: expr, result, steps[], assign flag, token usage |
+| **Deployment** | Frontend: Vercel | Backend: Render |
+
+---
+
+## Project Structure
 
 ```
-AICalc/
-├── calc-fe/                 # Frontend (React + TypeScript + Vite)
-│   ├── src/
-│   │   ├── App.tsx         # Main application component
-│   │   ├── index.css       # Styling
-│   │   └── main.tsx        # Entry point
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── vercel.json         # Vercel deployment config
-│
-└── calc-be/                 # Backend (FastAPI + Python)
-    ├── apps/
-    │   └── calculator/
-    │       ├── route.py    # API endpoints
-    │       └── utils.py    # AI logic
-    ├── main.py             # FastAPI server
-    ├── schema.py           # Data models
-    ├── constants.py        # Configuration
-    ├── requirements.txt
-    ├── gunicorn_config.py  # Production server config
-    ├── render.yaml         # Render deployment config
-    └── Procfile            # Heroku-compatible deploy
+calc-fe/                  # Frontend v3.0.0
+├── src/
+│   ├── App.tsx         # Canvas, drawing, text mode, text boxes, drag/resize/delete, solve
+│   ├── index.css       # Windows 95 UI, text box styles, responsive mobile
+│   ├── main.tsx        # React entry point
+│   └── vite-env.d.ts   # Vite type definitions
+├── package.json        # React 18.3.1, KaTeX 0.16.45, perfect-freehand 1.2.3
+├── vite.config.ts      # Proxy: /api → localhost:8900, React plugin
+├── tsconfig.json       # TypeScript config
+└── vercel.json         # Vercel deployment
+
+calc-be/                  # Backend v2.0.0
+├── main.py             # FastAPI app, CORS, /healthz, /calculate routes
+├── apps/calculator/
+│   ├── route.py        # POST /calculate endpoint, base64 decode, request validation
+│   └── utils.py        # Gemini API calls, prompt building, response parsing, key rotation
+├── schema.py           # ImageData model (image, subject, dict_of_vars, include_steps)
+├── constants.py        # Env config: GEMINI_API_KEYS, PORT, ENV, SERVER_URL, GEMINI_MODEL
+├── requirements.txt    # FastAPI, Pillow, google-genai, pydantic, uvicorn, gunicorn
+├── gunicorn_config.py  # 4 workers, preload app, optimized logging
+├── render.yaml         # Render deployment config
+└── Procfile            # Heroku-compatible (if needed)
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## Features
 
-### Frontend
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Vite** - Fast build tool
-- **perfect-freehand** - Smooth stroke rendering
-- **KaTeX** - LaTeX math rendering
-- **Deployed on Vercel** - Instant cold start
+- **Canvas Drawing**: Freehand with perfect-freehand (smooth strokes)
+- **Text Mode**: Add, drag, resize, and edit text boxes on canvas; baked into image before solving
+- **Colors**: 6 swatches (#000080, #000000, #ff0000, #008000, #800080, #808080)
+- **Eraser**: Clear individual strokes
+- **Step-by-Step**: Toggle for detailed explanation or final answer only
+- **Token Tracking**: Cumulative usage stored in localStorage
+- **Mobile Responsive**: Adaptive UI for ≤768px
+- **Windows 95 UI**: Retro-style interface with proper visual feedback
+- **Backend Warmup**: Auto-ping health endpoint on load + 14-min keep-alive
+- **Retry Logic**: 2x retry on timeout/error before failing
+- **Multi-Key Support**: Key rotation on quota exhaustion
+- **CORS**: Configured for local dev and production URLs
+
+---
+
+## Setup
+
+**Prerequisites:** Node.js 18+, Python 3.9+, Google API Key
 
 ### Backend
-- **FastAPI** - Modern Python web framework
-- **Uvicorn** - ASGI server
-- **Gunicorn** - Production-grade WSGI server
-- **Google Gemini API** - AI problem solving
-- **Pillow** - Image processing
-- **Deployed on Render** - Free tier with optimizations
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js 18+ (for frontend)
-- Python 3.9+ (for backend)
-- Google API Key (free from [Google AI Studio](https://aistudio.google.com/app/apikey))
-
-### Backend Setup
-
 ```bash
 cd calc-be
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
-
-# Install dependencies
+python -m venv venv && source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
-
-# Create .env file
-echo GEMINI_API_KEY=your_key_here > .env
-echo SERVER_URL=localhost >> .env
-echo PORT=8900 >> .env
-echo ENV=dev >> .env
-
-# Run server
-python main.py
+echo GEMINI_API_KEY=your_key > .env && echo SERVER_URL=localhost >> .env && echo PORT=8900 >> .env && echo ENV=dev >> .env
+python main.py  # http://localhost:8900
 ```
 
-Backend runs on `http://localhost:8900`
-
-### Frontend Setup
-
+### Frontend
 ```bash
 cd calc-fe
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
+npm run dev  # http://localhost:5173
 ```
 
-Frontend runs on `http://localhost:5173`
-
-### Optional: Point Frontend to Backend
-
-Create `calc-fe/.env`:
-```
-VITE_API_BASE=http://localhost:8900
-```
-
-Without this, the Vite dev proxy will forward `/api` requests to `localhost:8900`.
+Set `VITE_API_BASE=http://localhost:8900` in `.env` if dev proxy fails.
 
 ---
 
-## 📋 API Endpoints
+## API Endpoints
 
-### Health Check
-```http
-GET /healthz
+**Health Check:**
 ```
-Returns `{ "status": "ok", "version": "2.0.0" }`
+GET /healthz → { "status": "ok", "version": "2.0.0" }
+```
 
-### Calculate
-```http
+**Calculate:**
+```
 POST /calculate
-Content-Type: application/json
-
 {
   "image": "data:image/png;base64,...",
-  "subject": "math",
+  "subject": "math" | "physics" | "chemistry",
   "dict_of_vars": {},
   "include_steps": true
 }
-```
 
-**Response:**
-```json
-{
+→ {
+  "message": "Image processed successfully",
+  "status": "success",
   "data": [
     {
-      "expr": "2+2",
-      "result": "4",
-      "steps": [
-        {"explanation": "Adding 2+2..."}
-      ]
+      "expr": "LaTeX expr",
+      "result": "LaTeX result",
+      "steps": [{"explanation": "..."}],
+      "assign": false
     }
   ],
-  "usage": {
-    "total_tokens": 150
-  }
+  "usage": { "prompt_tokens": N, "completion_tokens": N, "total_tokens": N }
 }
 ```
 
 ---
 
-## 🌐 Deployment
+## Deployment
 
-### Frontend (Vercel)
+| Platform | URL | Config | Auto Deploy |
+|----------|-----|--------|------------|
+| **Frontend** | https://ai-calc-dusky.vercel.app | calc-fe/vercel.json | Push to main |
+| **Backend** | https://aicalc-nvif.onrender.com | calc-be/render.yaml | Push to main |
 
-The frontend is automatically deployed on every push to `main`:
+**Env Vars (Backend - Render):**
+- `GEMINI_API_KEY`: Your Google API key (supports comma-separated for rotation)
+- `GEMINI_MODEL`: Override model (default: gemini-2.5-flash)
+- `ENV`: prod or dev
+- `PORT`: Auto-assigned by Render
+- `SERVER_URL`: 0.0.0.0
 
+---
+
+## Technical Details
+
+**Frontend (App.tsx):**
+- Canvas state: points, drawing, eraser mode, text mode, text boxes
+- Subjects: ["math", "physics", "chemistry"]
+- Colors: 6 swatches (#000080, #000000, #ff0000, #008000, #800080, #808080)
+- Brush size: 1-15
+- **Text Mode Features:**
+  - Create text boxes via click (isTextMode enabled)
+  - Drag via header (grab cursor, active=grabbing)
+  - Resize via corner handle (se-resize cursor)
+  - Delete via close button (✕)
+  - Contenteditable input with placeholder "Type here..."
+  - Text boxes baked into canvas before solving (Share Tech Mono font, 14px)
+- Results display with KaTeX math rendering
+- Token tracking in localStorage
+- Retry logic: 2x attempts with exponential backoff
+- Model display: `VITE_MODEL_NAME` env var or "GEMINI 2.5 FLASH"
+- **UI:** Windows 95-style buttons, text boxes with blue gradient headers, responsive (240px desktop | mobile bottom drawer)
+
+**Backend (utils.py):**
+- Image → PNG bytes → Gemini API call
+- Prompt engineering: subject-specific directives, LaTeX requirement, JSON format
+- Response parsing: json.loads, ast.literal_eval, regex fallback
+- Error handling: 429 quota exhaustion triggers key rotation
+- Token counting: prompt_tokens, completion_tokens, total_tokens
+
+**Schema (schema.py):**
+```python
+class ImageData(BaseModel):
+    image: str
+    dict_of_vars: dict
+    subject: Optional[str] = "math"
+    include_steps: bool = True
+```
+
+---
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Backend slow (30-60s) | Render free tier cold start | Frontend auto-warms on load; upgrade for instant start |
+| Backend offline | Free tier 15-min auto-spindown | Frontend 14-min keep-alive pings health endpoint |
+| CORS errors | Different domains | Already configured for localhost + production URLs |
+| Image not recognized | Small/unclear drawing | Draw larger, clearer lines |
+| 429 quota error | API key limit hit | Add comma-separated keys; auto-rotates |
+
+---
+
+## Performance Optimizations
+
+**Frontend:**
+- Health ping on app load (60s timeout)
+- 14-min heartbeat to prevent spindown
+- Retry logic with exponential backoff
+- localStorage for token persistence
+
+**Backend:**
+- 4 Gunicorn workers
+- App preload (shared across workers)
+- Minimal logging
+- Lazy imports
+
+---
+
+## Development
+
+**Build Frontend:**
 ```bash
-git push origin main
+cd calc-fe && npm run build
 ```
 
-Vercel config is in `calc-fe/vercel.json`
-
-**Frontend URL:** https://ai-calc-dusky.vercel.app
-
-### Backend (Render)
-
-Render config is in `calc-be/render.yaml`
-
-**Backend URL:** https://aicalc-nvif.onrender.com
-
-### Environment Variables
-
-**Backend** (Render Dashboard):
-- `GEMINI_API_KEY` - Your Google API key
-- `ENV` - Set to `prod`
-- `PORT` - Auto-assigned by Render
-- `SERVER_URL` - Set to `0.0.0.0`
-
-**Frontend** (Vercel Dashboard):
-- No secrets needed - API base is hardcoded in build
-
----
-
-## ⚡ Performance Optimizations
-
-### Frontend
-- **Automatic Backend Warm-up** - Pings health endpoint on app load to wake up sleeping Render instance
-- **Keep-Alive Ping** - Sends heartbeat every 14 minutes to prevent cold spin-down
-- **Retry Logic** - Automatic retries with exponential backoff for failed requests
-- **60-second Timeout** - Gives backend time to start before timing out
-
-### Backend
-- **Multi-Worker** - 4 Gunicorn workers for better concurrency
-- **Preload App** - App loaded once, shared across workers
-- **Reduced Logging** - Minimal logging overhead for faster startup
-- **Optimized Imports** - Lazy loading of heavy dependencies
-
----
-
-## 🎯 How to Use
-
-1. **Visit** [https://ai-calc-dusky.vercel.app](https://ai-calc-dusky.vercel.app)
-2. **Select Subject** - Choose Math, Physics, or Chemistry
-3. **Draw Problem** - Use the canvas to draw your problem
-4. **Customize** - Adjust brush size, colors, or enable step-by-step explanation
-5. **Calculate** - Click the CALCULATE button
-6. **View Results** - See the answer and optional steps
-
-### Tips
-- Draw clearly for better recognition
-- Use the eraser tool if you make mistakes
-- Enable "SHOW STEPS" for detailed explanations
-- Token count tracks your API usage
-
----
-
-## 🐛 Troubleshooting
-
-### Backend Takes Too Long to Start
-- **Free Tier:** First request may take 30-60 seconds as Render spins up
-- **Solution:** The frontend automatically wakes up the backend on page load
-- **Better Solution:** Upgrade to Render Standard ($7/month) for instant startup
-
-### Backend Keeps Going Offline
-- **Cause:** Render free tier spins down after 15 minutes of inactivity
-- **Solution:** Frontend keeps it alive with periodic health checks
-- **Upgrade Option:** Standard tier never spins down
-
-### CORS Errors
-- **Cause:** Backend and frontend on different domains
-- **Solution:** CORS is already configured in `main.py` for both local and production
-- **Check:** Verify `VITE_API_BASE` is correctly set
-
-### Image Not Recognized
-- **Cause:** Drawing is too small or unclear
-- **Solution:** Draw larger and clearer
-- **Debug:** Check browser console for specific errors
-
----
-
-## 📚 Project Structure
-
+**Type Check:**
+```bash
+npm run type-check
 ```
-Frontend (calc-fe):
-  - React component-based architecture
-  - Vite for fast builds
-  - TypeScript for type safety
-  - Canvas API for drawing
-  - Fetch API for backend communication
 
-Backend (calc-be):
-  - FastAPI with async/await
-  - Modular route + utility structure
-  - Google Gemini integration
-  - Image processing pipeline
-  - CORS middleware for cross-origin requests
+**Lint:**
+```bash
+npm run lint && npm run lint:fix
 ```
 
 ---
 
-## 🔒 Security
+## Files Reference
 
-- **API Keys:** All stored as environment variables, never committed
-- **CORS:** Restricted to specific origins in production
-- **Input Validation:** Image format and size validated
-- **Error Handling:** No sensitive info leaked in error messages
-
----
-
-## 💰 Costs
-
-- **Frontend (Vercel):** Free
-- **Backend (Render):** Free (with cold start penalty) or $7/month for instant performance
-- **API:** Google Gemini free tier included
-
----
-
-## 🚧 Future Improvements
-
-- [ ] Support for handwritten equations
-- [ ] Graph plotting capability
-- [ ] Unit conversion
-- [ ] Problem history
-- [ ] Offline mode with local models
-- [ ] Mobile app (React Native)
-- [ ] Custom problem templates
+| File | Purpose |
+|------|---------|
+| calc-be/main.py | FastAPI app init, CORS, /healthz, /calculate router |
+| calc-be/apps/calculator/route.py | POST /calculate, image decode (base64→PNG), Gemini API call |
+| calc-be/apps/calculator/utils.py | analyze_image(), prompt builder, response parser, key rotation, token usage |
+| calc-be/schema.py | ImageData Pydantic model (image, subject, dict_of_vars, include_steps) |
+| calc-be/constants.py | Env config loading (GEMINI_API_KEYS, PORT, ENV, SERVER_URL, GEMINI_MODEL) |
+| calc-fe/src/App.tsx | Canvas, drawing, text mode, text boxes, drag/resize, solve logic, UI controls |
+| calc-fe/src/index.css | Windows 95 UI theme, text box styling, responsive mobile layout |
+| calc-fe/vite.config.ts | Vite proxy (/api → localhost:8900) + React plugin |
+| calc-fe/package.json | React 18.3.1, KaTeX 0.16.45, perfect-freehand 1.2.3, TypeScript 5.5.3
 
 ---
 
-## 📝 License
+## License & Author
 
-MIT License - Feel free to use and modify
-
----
-
-## 👨‍💻 Created by
-
-**Aryan Ranavat**
-
----
-
-## 🤝 Contributing
-
-Found a bug or have a feature request? Feel free to open an issue!
-
----
-
-**Happy calculating! 🧮**
+MIT License | Created by Aryan Ranavat
