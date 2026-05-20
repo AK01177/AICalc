@@ -95,7 +95,6 @@ def _extract_text(response: Any) -> str:
 
 
 def _parse_response(text: str) -> Optional[List[Any]]:
-    """Try json.loads first, fall back to literal_eval, then regex extract."""
     if not text: return None
     cleaned = _FENCE_RE.sub("", text).strip()
     for parser in (json.loads, ast.literal_eval):

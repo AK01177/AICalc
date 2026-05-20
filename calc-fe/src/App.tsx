@@ -23,6 +23,15 @@ type CalculateResponse = {
   };
 };
 
+type TextBox = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  text: string;
+};
+
 export default function App() {
   const [color, setColor] = useState(SWATCHES[0]);
   const [brush, setBrush] = useState(3);
@@ -32,10 +41,17 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [showSteps, setShowSteps] = useState(false);
   const [isEraser, setIsEraser] = useState(false);
+  const [isTextMode, setIsTextMode] = useState(false);
   const [hasContent, setHasContent] = useState(false);
   const [totalTokens, setTotalTokens] = useState(0);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
+  const [activeTextBoxId, setActiveTextBoxId] = useState<string | null>(null);
+
+  const dragRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -55,12 +71,10 @@ export default function App() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Warm up backend on mount and keep it alive to prevent Render cold starts
   useEffect(() => {
     const apiBase = import.meta.env.VITE_API_BASE || "";
     const healthEndpoint = apiBase ? `${apiBase.replace(/\/$/, "")}/healthz` : "/api/healthz";
 
-    // Initial warmup with retries
     const warmupBackend = async () => {
       let retries = 0;
       const maxRetries = 5;
@@ -68,7 +82,7 @@ export default function App() {
       const attemptWarmup = async () => {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
           
           const response = await fetch(healthEndpoint, {
             method: "GET",
@@ -82,10 +96,8 @@ export default function App() {
             return true;
           }
         } catch (e) {
-          // Silently ignore errors during warmup
         }
         
-        // Retry with exponential backoff
         if (retries < maxRetries) {
           retries++;
           const delay = Math.min(1000 * Math.pow(1.5, retries), 10000);
@@ -98,12 +110,9 @@ export default function App() {
     
     warmupBackend();
 
-    // Keep-alive ping every 14 minutes to prevent Render free tier spin-down (happens after 15 mins)
     const keepAliveInterval = setInterval(() => {
-      fetch(healthEndpoint, { method: "GET" }).catch(() => {
-        // Silently ignore errors
-      });
-    }, 14 * 60 * 1000); // 14 minutes
+      fetch(healthEndpoint, { method: "GET" }).catch(() => {});
+    }, 14 * 60 * 1000);
 
     return () => clearInterval(keepAliveInterval);
   }, []);
@@ -189,6 +198,7 @@ export default function App() {
   };
 
   const onPointer = (e: React.PointerEvent<HTMLCanvasElement>, type: string) => {
+    if (isTextMode) return;
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
     if (!canvas || !ctx) return;
@@ -210,12 +220,111 @@ export default function App() {
     }
   };
 
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isTextMode) return;
+    const wrap = canvasWrapRef.current;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const id = `tb_${Date.now()}`;
+    const newBox: TextBox = { id, x, y, width: 180, height: 60, text: "" };
+    setTextBoxes((prev) => [...prev, newBox]);
+    setActiveTextBoxId(id);
+    setHasContent(true);
+  };
+
+  const deleteTextBox = (id: string) => {
+    setTextBoxes((prev) => prev.filter((tb) => tb.id !== id));
+    if (activeTextBoxId === id) setActiveTextBoxId(null);
+  };
+
+  const updateTextBoxText = (id: string, text: string) => {
+    setTextBoxes((prev) => prev.map((tb) => (tb.id === id ? { ...tb, text } : tb)));
+  };
+
+  const onWrapPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current) {
+      const d = dragRef.current;
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      setTextBoxes((prev) =>
+        prev.map((tb) => (tb.id === d.id ? { ...tb, x: d.origX + dx, y: d.origY + dy } : tb))
+      );
+    }
+    if (resizeRef.current) {
+      const r = resizeRef.current;
+      const dx = e.clientX - r.startX;
+      const dy = e.clientY - r.startY;
+      setTextBoxes((prev) =>
+        prev.map((tb) =>
+          tb.id === r.id
+            ? { ...tb, width: Math.max(100, r.origW + dx), height: Math.max(40, r.origH + dy) }
+            : tb
+        )
+      );
+    }
+  };
+
+  const onWrapPointerUp = () => {
+    dragRef.current = null;
+    resizeRef.current = null;
+  };
+
+  const bakeTextBoxes = () => {
+    const canvas = canvasRef.current;
+    const ctx = ctxRef.current;
+    const wrap = canvasWrapRef.current;
+    if (!canvas || !ctx || !wrap) return;
+
+    const dpr = window.devicePixelRatio || 1;
+
+    textBoxes.forEach((tb) => {
+      if (!tb.text.trim()) return;
+      const fontSize = 14;
+      ctx.save();
+      ctx.font = `${fontSize}px 'Share Tech Mono', monospace`;
+      ctx.fillStyle = "#000";
+      ctx.textBaseline = "top";
+
+      const textX = tb.x * dpr / dpr;
+      const textY = (tb.y + 20) * dpr / dpr;
+      const maxWidth = tb.width - 12;
+
+      const words = tb.text.split(/\s+/);
+      const lines: string[] = [];
+      let currentLine = "";
+      for (const word of words) {
+        const test = currentLine ? `${currentLine} ${word}` : word;
+        if (ctx.measureText(test).width > maxWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = test;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+
+      lines.forEach((line, idx) => {
+        ctx.fillText(line, textX + 6, textY + 4 + idx * (fontSize + 2));
+      });
+      ctx.restore();
+    });
+  };
+
   const solve = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     setLoading(true);
     setError(null);
+
+    const ctx = ctxRef.current;
+    let preSnapshot: ImageData | null = null;
+    if (ctx && textBoxes.length > 0) {
+      preSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      bakeTextBoxes();
+    }
 
     let lastError: Error | null = null;
     const maxRetries = 2;
@@ -235,7 +344,7 @@ export default function App() {
         const endpoint = apiBase ? `${apiBase.replace(/\/$/, "")}/calculate` : "/api/calculate";
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
 
         const resp = await fetch(endpoint, {
           method: "POST",
@@ -274,23 +383,23 @@ export default function App() {
           });
         }
         
-        setLoading(false); // Reset loading state on success
+        if (preSnapshot && ctx) ctx.putImageData(preSnapshot, 0, 0);
+        setLoading(false);
         return;
       } catch (e: unknown) {
         lastError = e instanceof Error ? e : new Error("Unknown error");
         
-        // Only retry on timeout or network errors, not on 4xx/5xx response errors
         if (!(lastError.message.includes("Server Error") && lastError.message.includes("(4") || lastError.message.includes("(5")) && attempt < maxRetries) {
-          // Wait before retry
           await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
           continue;
         }
         
-        break; // Don't retry on server errors
+        break;
       }
     }
 
-    // If we get here, all retries failed
+    if (preSnapshot && ctx) ctx.putImageData(preSnapshot, 0, 0);
+
     const errorMsg = lastError?.message || "Something went wrong";
     const fullErrorMsg = errorMsg.includes("Server Error") 
       ? errorMsg 
@@ -318,12 +427,15 @@ export default function App() {
             setHasContent(false);
             setResults([]);
             setIsEraser(false);
+            setIsTextMode(false);
+            setTextBoxes([]);
+            setActiveTextBoxId(null);
           }}
         >
           CLEAR
         </button>
         <button
-          onClick={() => setIsEraser(!isEraser)}
+          onClick={() => { setIsEraser(!isEraser); setIsTextMode(false); }}
           style={{
             background: isEraser ? "#808080" : "#c0c0c0",
             color: isEraser ? "#fff" : "#000",
@@ -332,20 +444,78 @@ export default function App() {
         >
           {isEraser ? "ERASING" : "ERASER"}
         </button>
+        <button
+          onClick={() => { setIsTextMode(!isTextMode); setIsEraser(false); }}
+          style={{
+            background: isTextMode ? "#808080" : "#c0c0c0",
+            color: isTextMode ? "#fff" : "#000",
+            boxShadow: isTextMode ? "inset 2px 2px #000" : "1px 1px 0 0 var(--border-black)",
+          }}
+        >
+          {isTextMode ? "TYPING" : "TEXT"}
+        </button>
         <div className="toolbar-spacer" style={{ flex: 1 }} />
         <span className="toolbar-label">MODEL: {import.meta.env.VITE_MODEL_NAME || "GEMINI 2.5 FLASH"}</span>
         <span className="toolbar-label">TOKENS: {totalTokens.toLocaleString()}</span>
       </div>
 
-      <div className="canvas-wrap">
+      <div
+        className="canvas-wrap"
+        ref={canvasWrapRef}
+        onPointerMove={onWrapPointerMove}
+        onPointerUp={onWrapPointerUp}
+        onPointerLeave={onWrapPointerUp}
+      >
         <canvas
           ref={canvasRef}
-          style={{ touchAction: "none" }}
+          style={{ touchAction: "none", cursor: isTextMode ? "text" : "crosshair" }}
           onPointerDown={(e) => onPointer(e, "down")}
           onPointerMove={(e) => onPointer(e, "move")}
           onPointerUp={(e) => onPointer(e, "up")}
           onPointerLeave={(e) => onPointer(e, "up")}
+          onClick={handleCanvasClick}
         />
+
+        {textBoxes.map((tb) => (
+          <div
+            key={tb.id}
+            className={`text-box${activeTextBoxId === tb.id ? " focused" : ""}`}
+            style={{ left: tb.x, top: tb.y, width: tb.width, height: tb.height }}
+            onPointerDown={() => setActiveTextBoxId(tb.id)}
+          >
+            <div
+              className="text-box-handle"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragRef.current = { id: tb.id, startX: e.clientX, startY: e.clientY, origX: tb.x, origY: tb.y };
+              }}
+            >
+              <button
+                className="text-box-close"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); deleteTextBox(tb.id); }}
+              >
+                ✕
+              </button>
+            </div>
+            <div
+              className="text-box-content"
+              contentEditable
+              suppressContentEditableWarning
+              onInput={(e) => updateTextBoxText(tb.id, (e.target as HTMLDivElement).innerText)}
+              onPointerDown={(e) => e.stopPropagation()}
+            />
+            <div
+              className="text-box-resize"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                resizeRef.current = { id: tb.id, startX: e.clientX, startY: e.clientY, origW: tb.width, origH: tb.height };
+              }}
+            />
+          </div>
+        ))}
 
         <div
           className={`controls-backdrop${mobileControlsOpen ? " visible" : ""}`}
