@@ -274,7 +274,8 @@ export default function App() {
           });
         }
         
-        return; // Success, exit
+        setLoading(false); // Reset loading state on success
+        return;
       } catch (e: unknown) {
         lastError = e instanceof Error ? e : new Error("Unknown error");
         
