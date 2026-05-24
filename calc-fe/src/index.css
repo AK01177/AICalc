@@ -468,6 +468,24 @@ input[type="range"] {
 
 .results-close-btn {
   display: none;
+  float: right;
+  padding: 2px 8px;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.step-detail {
+  font-size: 11px;
+  margin-top: 6px;
+  color: #333;
+  background: #f9f9f9;
+  padding: 4px;
+  border-left: 2px solid #000080;
+}
+
+.error-results {
+  color: #f00;
+  border: 1px solid #f00;
 }
 
 .text-box {

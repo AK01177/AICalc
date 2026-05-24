@@ -12,4 +12,3 @@ loglevel = "warning"
 accesslog = "-"
 errorlog = "-"
 worker_connections = 1000
-
