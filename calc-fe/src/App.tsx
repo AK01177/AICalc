@@ -3,27 +3,27 @@ import { getStroke } from "perfect-freehand";
 import "katex/dist/katex.min.css";
 import { InlineMath } from "react-katex";
 
-const SUBJECTS = ["math", "physics", "chemistry"];
-const SWATCHES = ["#000080", "#000000", "#ff0000", "#008000", "#800080", "#808080"];
+const REALMS = ["math", "physics", "chemistry"];
+const INKS = ["#000080", "#000000", "#ff0000", "#008000", "#800080", "#808080"];
 
-type CalculationStep = {
+type StepBit = {
   explanation: string;
 };
 
-type CalculationResult = {
+type SolveCard = {
   expr: string;
   result: string;
-  steps?: CalculationStep[];
+  steps?: StepBit[];
 };
 
-type CalculateResponse = {
-  data?: CalculationResult[];
+type SolveReply = {
+  data?: SolveCard[];
   usage?: {
     total_tokens?: number;
   };
 };
 
-type TextBox = {
+type StickyInk = {
   id: string;
   x: number;
   y: number;
@@ -33,53 +33,53 @@ type TextBox = {
 };
 
 export default function App() {
-  const [color, setColor] = useState(SWATCHES[0]);
+  const [color, setColor] = useState(INKS[0]);
   const [brush, setBrush] = useState(3);
-  const [subject, setSubject] = useState(SUBJECTS[0]);
-  const [results, setResults] = useState<CalculationResult[]>([]);
+  const [subject, setSubject] = useState(REALMS[0]);
+  const [results, setResults] = useState<SolveCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSteps, setShowSteps] = useState(false);
-  const [isEraser, setIsEraser] = useState(false);
-  const [isTextMode, setIsTextMode] = useState(false);
-  const [hasContent, setHasContent] = useState(false);
-  const [totalTokens, setTotalTokens] = useState(0);
-  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [stepPeek, setStepPeek] = useState(false);
+  const [scrubOn, setScrubOn] = useState(false);
+  const [typeHat, setTypeHat] = useState(false);
+  const [hasInk, setHasInk] = useState(false);
+  const [tokenPile, setTokenPile] = useState(0);
+  const [toolTrayOpen, setToolTrayOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
-  const [activeTextBoxId, setActiveTextBoxId] = useState<string | null>(null);
+  const [stickies, setStickies] = useState<StickyInk[]>([]);
+  const [hotStickyId, setHotStickyId] = useState<string | null>(null);
 
-  const dragRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
-  const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
-  const canvasWrapRef = useRef<HTMLDivElement>(null);
+  const grabRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const stretchRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const pointsRef = useRef<number[][]>([]);
-  const drawingRef = useRef(false);
-  const snapshotRef = useRef<ImageData | null>(null);
+  const paperRef = useRef<HTMLCanvasElement>(null);
+  const inkRef = useRef<CanvasRenderingContext2D | null>(null);
+  const trailRef = useRef<number[][]>([]);
+  const scribbleRef = useRef(false);
+  const beforeInkRef = useRef<ImageData | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("aicalc_total_tokens");
-    if (saved) setTotalTokens(Number(saved));
+    if (saved) setTokenPile(Number(saved));
   }, []);
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    const sniffPocket = () => setIsMobile(window.innerWidth <= 768);
+    sniffPocket();
+    window.addEventListener("resize", sniffPocket);
+    return () => window.removeEventListener("resize", sniffPocket);
   }, []);
 
   useEffect(() => {
     const apiBase = import.meta.env.VITE_API_BASE || "";
     const healthEndpoint = apiBase ? `${apiBase.replace(/\/$/, "")}/healthz` : "/api/healthz";
 
-    const warmupBackend = async () => {
+    const wakeServer = async () => {
       let retries = 0;
       const maxRetries = 5;
       
-      const attemptWarmup = async () => {
+      const pokeServer = async () => {
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -95,20 +95,21 @@ export default function App() {
             console.log("Backend is ready");
             return true;
           }
-        } catch (e) {
+        } catch {
+          console.debug("Backend warmup still waiting");
         }
         
         if (retries < maxRetries) {
           retries++;
           const delay = Math.min(1000 * Math.pow(1.5, retries), 10000);
-          setTimeout(attemptWarmup, delay);
+          setTimeout(pokeServer, delay);
         }
       };
       
-      attemptWarmup();
+      pokeServer();
     };
     
-    warmupBackend();
+    wakeServer();
 
     const keepAliveInterval = setInterval(() => {
       fetch(healthEndpoint, { method: "GET" }).catch(() => {});
@@ -117,8 +118,8 @@ export default function App() {
     return () => clearInterval(keepAliveInterval);
   }, []);
 
-  const initCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
+  const primePaper = useCallback(() => {
+    const canvas = paperRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
@@ -131,22 +132,22 @@ export default function App() {
     ctx.scale(dpr, dpr);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, rect.width, rect.height);
-    ctxRef.current = ctx;
+    inkRef.current = ctx;
   }, []);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = paperRef.current;
     if (!canvas) return;
 
-    initCanvas();
+    primePaper();
 
     const obs = new ResizeObserver(() => {
       const temp = canvas.toDataURL();
-      initCanvas();
+      primePaper();
 
       const img = new Image();
       img.onload = () => {
-        ctxRef.current?.drawImage(
+        inkRef.current?.drawImage(
           img,
           0,
           0,
@@ -159,15 +160,15 @@ export default function App() {
 
     obs.observe(canvas);
     return () => obs.disconnect();
-  }, [initCanvas]);
+  }, [primePaper]);
 
-  const draw = () => {
-    const ctx = ctxRef.current;
-    if (!ctx || !pointsRef.current.length || !snapshotRef.current) return;
+  const slingInk = () => {
+    const ctx = inkRef.current;
+    if (!ctx || !trailRef.current.length || !beforeInkRef.current) return;
 
-    ctx.putImageData(snapshotRef.current, 0, 0);
+    ctx.putImageData(beforeInkRef.current, 0, 0);
 
-    let pts = pointsRef.current;
+    let pts = trailRef.current;
     if (pts.length > 3) {
       const smoothed = [pts[0]];
       for (let i = 0; i < pts.length - 1; i++) {
@@ -190,73 +191,73 @@ export default function App() {
 
     if (!stroke.length) return;
 
-    ctx.fillStyle = isEraser ? "#ffffff" : color;
+    ctx.fillStyle = scrubOn ? "#ffffff" : color;
     ctx.beginPath();
     ctx.moveTo(stroke[0][0], stroke[0][1]);
     stroke.forEach(([x, y]) => ctx.lineTo(x, y));
     ctx.fill();
   };
 
-  const onPointer = (e: React.PointerEvent<HTMLCanvasElement>, type: string) => {
-    if (isTextMode) return;
-    const canvas = canvasRef.current;
-    const ctx = ctxRef.current;
+  const catchPen = (e: React.PointerEvent<HTMLCanvasElement>, type: string) => {
+    if (typeHat) return;
+    const canvas = paperRef.current;
+    const ctx = inkRef.current;
     if (!canvas || !ctx) return;
 
     const rect = canvas.getBoundingClientRect();
     const p = [e.clientX - rect.left, e.clientY - rect.top, e.pressure || 0.5];
 
     if (type === "down") {
-      drawingRef.current = true;
-      pointsRef.current = [p];
-      snapshotRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      setHasContent(true);
-    } else if (type === "move" && drawingRef.current) {
-      pointsRef.current.push(p);
-      draw();
+      scribbleRef.current = true;
+      trailRef.current = [p];
+      beforeInkRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      setHasInk(true);
+    } else if (type === "move" && scribbleRef.current) {
+      trailRef.current.push(p);
+      slingInk();
     } else if (type === "up") {
-      drawingRef.current = false;
-      pointsRef.current = [];
+      scribbleRef.current = false;
+      trailRef.current = [];
     }
   };
 
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isTextMode) return;
-    const wrap = canvasWrapRef.current;
+  const plantSticky = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!typeHat) return;
+    const wrap = stageRef.current;
     if (!wrap) return;
     const rect = wrap.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const id = `tb_${Date.now()}`;
-    const newBox: TextBox = { id, x, y, width: 180, height: 60, text: "" };
-    setTextBoxes((prev) => [...prev, newBox]);
-    setActiveTextBoxId(id);
-    setHasContent(true);
+    const newBox: StickyInk = { id, x, y, width: 180, height: 60, text: "" };
+    setStickies((prev) => [...prev, newBox]);
+    setHotStickyId(id);
+    setHasInk(true);
   };
 
-  const deleteTextBox = (id: string) => {
-    setTextBoxes((prev) => prev.filter((tb) => tb.id !== id));
-    if (activeTextBoxId === id) setActiveTextBoxId(null);
+  const ditchSticky = (id: string) => {
+    setStickies((prev) => prev.filter((tb) => tb.id !== id));
+    if (hotStickyId === id) setHotStickyId(null);
   };
 
-  const updateTextBoxText = (id: string, text: string) => {
-    setTextBoxes((prev) => prev.map((tb) => (tb.id === id ? { ...tb, text } : tb)));
+  const editSticky = (id: string, text: string) => {
+    setStickies((prev) => prev.map((tb) => (tb.id === id ? { ...tb, text } : tb)));
   };
 
-  const onWrapPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current) {
-      const d = dragRef.current;
+  const moveSticky = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (grabRef.current) {
+      const d = grabRef.current;
       const dx = e.clientX - d.startX;
       const dy = e.clientY - d.startY;
-      setTextBoxes((prev) =>
+      setStickies((prev) =>
         prev.map((tb) => (tb.id === d.id ? { ...tb, x: d.origX + dx, y: d.origY + dy } : tb))
       );
     }
-    if (resizeRef.current) {
-      const r = resizeRef.current;
+    if (stretchRef.current) {
+      const r = stretchRef.current;
       const dx = e.clientX - r.startX;
       const dy = e.clientY - r.startY;
-      setTextBoxes((prev) =>
+      setStickies((prev) =>
         prev.map((tb) =>
           tb.id === r.id
             ? { ...tb, width: Math.max(100, r.origW + dx), height: Math.max(40, r.origH + dy) }
@@ -266,20 +267,20 @@ export default function App() {
     }
   };
 
-  const onWrapPointerUp = () => {
-    dragRef.current = null;
-    resizeRef.current = null;
+  const dropSticky = () => {
+    grabRef.current = null;
+    stretchRef.current = null;
   };
 
-  const bakeTextBoxes = () => {
-    const canvas = canvasRef.current;
-    const ctx = ctxRef.current;
-    const wrap = canvasWrapRef.current;
+  const stampStickies = () => {
+    const canvas = paperRef.current;
+    const ctx = inkRef.current;
+    const wrap = stageRef.current;
     if (!canvas || !ctx || !wrap) return;
 
     const dpr = window.devicePixelRatio || 1;
 
-    textBoxes.forEach((tb) => {
+    stickies.forEach((tb) => {
       if (!tb.text.trim()) return;
       const fontSize = 14;
       ctx.save();
@@ -312,18 +313,18 @@ export default function App() {
     });
   };
 
-  const solve = async () => {
-    const canvas = canvasRef.current;
+  const crunch = async () => {
+    const canvas = paperRef.current;
     if (!canvas) return;
 
     setLoading(true);
     setError(null);
 
-    const ctx = ctxRef.current;
+    const ctx = inkRef.current;
     let preSnapshot: ImageData | null = null;
-    if (ctx && textBoxes.length > 0) {
+    if (ctx && stickies.length > 0) {
       preSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      bakeTextBoxes();
+      stampStickies();
     }
 
     let lastError: Error | null = null;
@@ -353,7 +354,7 @@ export default function App() {
             image: offscreen.toDataURL("image/png"),
             subject,
             dict_of_vars: {},
-            include_steps: showSteps,
+            include_steps: stepPeek,
           }),
           signal: controller.signal,
         });
@@ -371,12 +372,12 @@ export default function App() {
           throw new Error(`Unexpected response format: ${text.slice(0, 100)}`);
         }
 
-        const data = (await resp.json()) as CalculateResponse;
+        const data = (await resp.json()) as SolveReply;
         setResults(data.data || []);
 
         const usedTokens = data.usage?.total_tokens || 0;
         if (usedTokens > 0) {
-          setTotalTokens((currentTotal) => {
+          setTokenPile((currentTotal) => {
             const nextTotal = currentTotal + usedTokens;
             localStorage.setItem("aicalc_total_tokens", String(nextTotal));
             return nextTotal;
@@ -418,83 +419,83 @@ export default function App() {
       </header>
 
       <div className="row top-toolbar" style={{ background: "#c0c0c0", padding: "2px 6px", borderBottom: "1px solid #808080" }}>
-        <button onClick={solve} disabled={loading || !hasContent}>
+        <button onClick={crunch} disabled={loading || !hasInk}>
           {loading ? "BUSY..." : "CALCULATE"}
         </button>
         <button
           onClick={() => {
-            initCanvas();
-            setHasContent(false);
+            primePaper();
+            setHasInk(false);
             setResults([]);
-            setIsEraser(false);
-            setIsTextMode(false);
-            setTextBoxes([]);
-            setActiveTextBoxId(null);
+            setScrubOn(false);
+            setTypeHat(false);
+            setStickies([]);
+            setHotStickyId(null);
           }}
         >
           CLEAR
         </button>
         <button
-          onClick={() => { setIsEraser(!isEraser); setIsTextMode(false); }}
+          onClick={() => { setScrubOn(!scrubOn); setTypeHat(false); }}
           style={{
-            background: isEraser ? "#808080" : "#c0c0c0",
-            color: isEraser ? "#fff" : "#000",
-            boxShadow: isEraser ? "inset 2px 2px #000" : "1px 1px 0 0 var(--border-black)",
+            background: scrubOn ? "#808080" : "#c0c0c0",
+            color: scrubOn ? "#fff" : "#000",
+            boxShadow: scrubOn ? "inset 2px 2px #000" : "1px 1px 0 0 var(--border-black)",
           }}
         >
-          {isEraser ? "ERASING" : "ERASER"}
+          {scrubOn ? "ERASING" : "ERASER"}
         </button>
         <button
-          onClick={() => { setIsTextMode(!isTextMode); setIsEraser(false); }}
+          onClick={() => { setTypeHat(!typeHat); setScrubOn(false); }}
           style={{
-            background: isTextMode ? "#808080" : "#c0c0c0",
-            color: isTextMode ? "#fff" : "#000",
-            boxShadow: isTextMode ? "inset 2px 2px #000" : "1px 1px 0 0 var(--border-black)",
+            background: typeHat ? "#808080" : "#c0c0c0",
+            color: typeHat ? "#fff" : "#000",
+            boxShadow: typeHat ? "inset 2px 2px #000" : "1px 1px 0 0 var(--border-black)",
           }}
         >
-          {isTextMode ? "TYPING" : "TEXT"}
+          {typeHat ? "TYPING" : "TEXT"}
         </button>
         <div className="toolbar-spacer" style={{ flex: 1 }} />
         <span className="toolbar-label">MODEL: {import.meta.env.VITE_MODEL_NAME || "GEMINI 2.5 FLASH"}</span>
-        <span className="toolbar-label">TOKENS: {totalTokens.toLocaleString()}</span>
+        <span className="toolbar-label">TOKENS: {tokenPile.toLocaleString()}</span>
       </div>
 
       <div
         className="canvas-wrap"
-        ref={canvasWrapRef}
-        onPointerMove={onWrapPointerMove}
-        onPointerUp={onWrapPointerUp}
-        onPointerLeave={onWrapPointerUp}
+        ref={stageRef}
+        onPointerMove={moveSticky}
+        onPointerUp={dropSticky}
+        onPointerLeave={dropSticky}
       >
         <canvas
-          ref={canvasRef}
-          style={{ touchAction: "none", cursor: isTextMode ? "text" : "crosshair" }}
-          onPointerDown={(e) => onPointer(e, "down")}
-          onPointerMove={(e) => onPointer(e, "move")}
-          onPointerUp={(e) => onPointer(e, "up")}
-          onPointerLeave={(e) => onPointer(e, "up")}
-          onClick={handleCanvasClick}
+          ref={paperRef}
+          style={{ touchAction: "none", cursor: typeHat ? "text" : "crosshair" }}
+          onPointerDown={(e) => catchPen(e, "down")}
+          onPointerMove={(e) => catchPen(e, "move")}
+          onPointerUp={(e) => catchPen(e, "up")}
+          onPointerLeave={(e) => catchPen(e, "up")}
+          onClick={plantSticky}
         />
 
-        {textBoxes.map((tb) => (
+        {stickies.map((tb) => (
           <div
             key={tb.id}
-            className={`text-box${activeTextBoxId === tb.id ? " focused" : ""}`}
+            className={`text-box${hotStickyId === tb.id ? " focused" : ""}`}
             style={{ left: tb.x, top: tb.y, width: tb.width, height: tb.height }}
-            onPointerDown={() => setActiveTextBoxId(tb.id)}
+            onPointerDown={() => setHotStickyId(tb.id)}
           >
             <div
               className="text-box-handle"
               onPointerDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                dragRef.current = { id: tb.id, startX: e.clientX, startY: e.clientY, origX: tb.x, origY: tb.y };
+                grabRef.current = { id: tb.id, startX: e.clientX, startY: e.clientY, origX: tb.x, origY: tb.y };
               }}
             >
               <button
                 className="text-box-close"
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); deleteTextBox(tb.id); }}
+                onClick={(e) => { e.stopPropagation(); ditchSticky(tb.id); }}
               >
                 ✕
               </button>
@@ -503,7 +504,7 @@ export default function App() {
               className="text-box-content"
               contentEditable
               suppressContentEditableWarning
-              onInput={(e) => updateTextBoxText(tb.id, (e.target as HTMLDivElement).innerText)}
+              onInput={(e) => editSticky(tb.id, (e.target as HTMLDivElement).innerText)}
               onPointerDown={(e) => e.stopPropagation()}
             />
             <div
@@ -511,22 +512,22 @@ export default function App() {
               onPointerDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                resizeRef.current = { id: tb.id, startX: e.clientX, startY: e.clientY, origW: tb.width, origH: tb.height };
+                stretchRef.current = { id: tb.id, startX: e.clientX, startY: e.clientY, origW: tb.width, origH: tb.height };
               }}
             />
           </div>
         ))}
 
         <div
-          className={`controls-backdrop${mobileControlsOpen ? " visible" : ""}`}
-          onClick={() => setMobileControlsOpen(false)}
+          className={`controls-backdrop${toolTrayOpen ? " visible" : ""}`}
+          onClick={() => setToolTrayOpen(false)}
         />
 
-        <div className={`controls${mobileControlsOpen ? " mobile-open" : ""}`}>
+        <div className={`controls${toolTrayOpen ? " mobile-open" : ""}`}>
           <div className="control-group">
             <span className="label">SUBJECT</span>
             <select value={subject} onChange={(e) => setSubject(e.target.value)}>
-              {SUBJECTS.map((s) => (
+              {REALMS.map((s) => (
                 <option key={s} value={s}>
                   {s.toUpperCase()}
                 </option>
@@ -545,14 +546,14 @@ export default function App() {
           <div className="control-group">
             <span className="label">COLORS</span>
             <div className="row wrap">
-              {SWATCHES.map((s) => (
+              {INKS.map((s) => (
                 <div
                   key={s}
                   className={`swatch ${color === s ? "active" : ""}`}
                   style={{ background: s }}
                   onClick={() => {
                     setColor(s);
-                    setIsEraser(false);
+                    setScrubOn(false);
                   }}
                 />
               ))}
@@ -561,16 +562,16 @@ export default function App() {
 
           <div className="control-group">
             <label className="checkbox-label">
-              <input type="checkbox" checked={showSteps} onChange={(e) => setShowSteps(e.target.checked)} />
+              <input type="checkbox" checked={stepPeek} onChange={(e) => setStepPeek(e.target.checked)} />
               <span>SHOW STEPS</span>
             </label>
           </div>
         </div>
 
-        {isMobile && !mobileControlsOpen && results.length === 0 && (
+        {isMobile && !toolTrayOpen && results.length === 0 && (
           <button
             className="mobile-controls-toggle"
-            onClick={() => setMobileControlsOpen(true)}
+            onClick={() => setToolTrayOpen(true)}
             aria-label="Open drawing tools"
           >
             ⚙
@@ -605,7 +606,7 @@ export default function App() {
                     <InlineMath math={r.result} />
                   </strong>
                 </div>
-                {showSteps &&
+                {stepPeek &&
                   r.steps?.map((s, j) => (
                     <div
                       key={j}

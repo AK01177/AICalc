@@ -9,14 +9,14 @@ from io import BytesIO
 from fastapi import APIRouter, HTTPException
 from PIL import Image, UnidentifiedImageError
 
-from apps.calculator.utils import analyze_image
+from apps.calculator.utils import read_scribble
 from schema import ImageData
 
 logger = logging.getLogger("aicalc.route")
 router = APIRouter()
 
 
-def _decode_image(data_url: str) -> Image.Image:
+def _unpack_doodle(data_url: str) -> Image.Image:
     if not data_url:
         raise HTTPException(status_code=400, detail="No image data provided")
 
@@ -37,7 +37,7 @@ def _decode_image(data_url: str) -> Image.Image:
 @router.post("")
 @router.post("/")
 async def calculate(data: ImageData):
-    image = _decode_image(data.image)
+    image = _unpack_doodle(data.image)
     subject = (data.subject or "math").lower()
     dict_of_vars = data.dict_of_vars or {}
 
@@ -50,7 +50,7 @@ async def calculate(data: ImageData):
 
     try:
         data_out = await asyncio.to_thread(
-            analyze_image,
+            read_scribble,
             image,
             dict_of_vars=dict_of_vars,
             subject=subject,
