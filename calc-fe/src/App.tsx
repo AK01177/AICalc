@@ -28,9 +28,12 @@ export default function App() {
   const [onMobile, setOnMobile] = useState(false);
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
   const [focusedBoxId, setFocusedBoxId] = useState<string | null>(null);
+  const [resultsAreaPos, setResultsAreaPos] = useState({ x: 0, y: 0, width: 500, height: 400 });
 
   const dragState = useRef<{id: string; startX: number; startY: number; origX: number; origY: number} | null>(null);
   const resizeState = useRef<{id: string; startX: number; startY: number; origW: number; origH: number} | null>(null);
+  const resultsDragState = useRef<{startX: number; startY: number; origX: number; origY: number} | null>(null);
+  const resultsResizeState = useRef<{startX: number; startY: number; origW: number; origH: number} | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctx2d = useRef<CanvasRenderingContext2D | null>(null);
@@ -48,6 +51,22 @@ export default function App() {
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
+    const centerResults = () => {
+      if (wrapperRef.current) {
+        const { width, height } = wrapperRef.current.getBoundingClientRect();
+        setResultsAreaPos(p => ({
+          ...p,
+          x: Math.max(0, (width - p.width) / 2),
+          y: Math.max(0, (height - p.height) / 2),
+        }));
+      }
+    };
+    centerResults();
+    window.addEventListener("resize", centerResults);
+    return () => window.removeEventListener("resize", centerResults);
   }, []);
 
   // render.com free tier spins down after 15min idle,
@@ -174,6 +193,10 @@ export default function App() {
     const d = dragState.current, r = resizeState.current;
     if (d) updateBox(d.id, { x: d.origX + e.clientX - d.startX, y: d.origY + e.clientY - d.startY });
     if (r) updateBox(r.id, { width: Math.max(100, r.origW + e.clientX - r.startX), height: Math.max(40, r.origH + e.clientY - r.startY) });
+
+    const rd = resultsDragState.current, rr = resultsResizeState.current;
+    if (rd) setResultsAreaPos(p => ({ ...p, x: rd.origX + e.clientX - rd.startX, y: rd.origY + e.clientY - rd.startY }));
+    if (rr) setResultsAreaPos(p => ({ ...p, width: Math.max(300, rr.origW + e.clientX - rr.startX), height: Math.max(100, rr.origH + e.clientY - rr.startY) }));
   }
 
   // samples every 40th pixel to check if canvas is basically blank
@@ -326,8 +349,8 @@ export default function App() {
       </div>
 
       <div className="canvas-wrap" ref={wrapperRef} onPointerMove={onBoxPointerMove}
-        onPointerUp={() => { dragState.current = null; resizeState.current = null; }}
-        onPointerLeave={() => { dragState.current = null; resizeState.current = null; }}>
+        onPointerUp={() => { dragState.current = null; resizeState.current = null; resultsDragState.current = null; resultsResizeState.current = null; }}
+        onPointerLeave={() => { dragState.current = null; resizeState.current = null; resultsDragState.current = null; resultsResizeState.current = null; }}>
         <canvas
           ref={canvasRef}
           style={{ touchAction: "none", cursor: textMode ? "text" : "crosshair" }}
@@ -399,20 +422,53 @@ export default function App() {
         )}
 
         {solveResults.length > 0 && (
-          <div className="results-area">
-            <button className="results-close-btn" onClick={() => setSolveResults([])}>✕ CLOSE</button>
-            {solveResults.map((r, i) => (
-              <div key={i} className="card">
-                <div className="result-line">
-                  <InlineMath math={r.expr} /> = <strong><InlineMath math={r.result} /></strong>
+          <div className="results-area" style={{ left: resultsAreaPos.x, top: resultsAreaPos.y, width: resultsAreaPos.width, height: resultsAreaPos.height }}
+            onPointerMove={onBoxPointerMove}
+            onPointerUp={() => { resultsDragState.current = null; resultsResizeState.current = null; }}
+            onPointerLeave={() => { resultsDragState.current = null; resultsResizeState.current = null; }}>
+            <div className="results-area-header" onPointerDown={e => {
+              e.preventDefault(); e.stopPropagation();
+              resultsDragState.current = { startX: e.clientX, startY: e.clientY, origX: resultsAreaPos.x, origY: resultsAreaPos.y };
+            }}>
+              <span>Results</span>
+              <button className="results-close-btn" onClick={() => setSolveResults([])}>✕</button>
+            </div>
+            <div className="results-area-content">
+              {solveResults.map((r, i) => (
+                <div key={i} className="card">
+                  <div className="result-line">
+                    <InlineMath math={r.expr} /> = <strong><InlineMath math={r.result} /></strong>
+                  </div>
+                  {showSteps && r.steps?.map((s, j) => <div key={j} className="step-detail">{s.explanation}</div>)}
                 </div>
-                {showSteps && r.steps?.map((s, j) => <div key={j} className="step-detail">{s.explanation}</div>)}
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="results-area-resize" onPointerDown={e => {
+              e.preventDefault(); e.stopPropagation();
+              resultsResizeState.current = { startX: e.clientX, startY: e.clientY, origW: resultsAreaPos.width, origH: resultsAreaPos.height };
+            }}></div>
           </div>
         )}
 
-        {errMsg && <div className="results-area error-results">ERR: {errMsg}</div>}
+        {errMsg && (
+          <div className="results-area error-results" style={{ left: resultsAreaPos.x, top: resultsAreaPos.y, width: resultsAreaPos.width, height: resultsAreaPos.height }}
+            onPointerMove={onBoxPointerMove}
+            onPointerUp={() => { resultsDragState.current = null; resultsResizeState.current = null; }}
+            onPointerLeave={() => { resultsDragState.current = null; resultsResizeState.current = null; }}>
+            <div className="results-area-header" onPointerDown={e => {
+              e.preventDefault(); e.stopPropagation();
+              resultsDragState.current = { startX: e.clientX, startY: e.clientY, origX: resultsAreaPos.x, origY: resultsAreaPos.y };
+            }}>
+              <span>Error</span>
+              <button className="results-close-btn" onClick={() => setErrMsg(null)}>✕</button>
+            </div>
+            <div className="results-area-content">ERR: {errMsg}</div>
+            <div className="results-area-resize" onPointerDown={e => {
+              e.preventDefault(); e.stopPropagation();
+              resultsResizeState.current = { startX: e.clientX, startY: e.clientY, origW: resultsAreaPos.width, origH: resultsAreaPos.height };
+            }}></div>
+          </div>
+        )}
       </div>
     </div>
   );
