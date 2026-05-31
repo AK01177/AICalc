@@ -5,6 +5,7 @@ from io import BytesIO
 import json
 import logging
 import re
+import threading
 from typing import Any, Dict, List, Optional
 
 from google import genai
@@ -17,29 +18,32 @@ logger = logging.getLogger("aicalc.utils")
 
 _key_index = 0
 _genai_client: Optional[genai.Client] = None
+_key_lock = threading.Lock()
 
 def _gemini_pal() -> Optional[genai.Client]:
     global _genai_client, _key_index
     if not GEMINI_API_KEYS:
         logger.error("No GEMINI_API_KEYS found in environment!")
         return None
-    if _genai_client is None:
-        key = GEMINI_API_KEYS[_key_index]
-        _genai_client = genai.Client(api_key=key)
-        masked_key = key[:4] + "..." + key[-4:] if len(key) > 8 else "****"
-        logger.info(">>> Using Gemini API Key #%d [%s]", _key_index + 1, masked_key)
-    return _genai_client
+    with _key_lock:
+        if _genai_client is None:
+            key = GEMINI_API_KEYS[_key_index]
+            _genai_client = genai.Client(api_key=key)
+            masked_key = key[:4] + "..." + key[-4:] if len(key) > 8 else "****"
+            logger.info(">>> Using Gemini API Key #%d [%s]", _key_index + 1, masked_key)
+        return _genai_client
 
 def _key_shuffle():
     global _genai_client, _key_index
-    if len(GEMINI_API_KEYS) > 1:
-        old_idx = _key_index
-        _key_index = (_key_index + 1) % len(GEMINI_API_KEYS)
-        _genai_client = None
-        logger.warning("!!! QUOTA EXHAUSTED on Key #%d. Rotating to Key #%d...", old_idx + 1, _key_index + 1)
-        return True
-    logger.error("!!! QUOTA EXHAUSTED and no more keys available to rotate.")
-    return False
+    with _key_lock:
+        if len(GEMINI_API_KEYS) > 1:
+            old_idx = _key_index
+            _key_index = (_key_index + 1) % len(GEMINI_API_KEYS)
+            _genai_client = None
+            logger.warning("!!! QUOTA EXHAUSTED on Key #%d. Rotating to Key #%d...", old_idx + 1, _key_index + 1)
+            return True
+        logger.error("!!! QUOTA EXHAUSTED and no more keys available to rotate.")
+        return False
 
 _DEFAULT_MODEL_NAME = "gemini-2.5-flash"
 _MODEL_PREFERENCE = ["gemini-2.5-flash"]
