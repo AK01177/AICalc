@@ -9,7 +9,7 @@ from io import BytesIO
 from fastapi import APIRouter, HTTPException
 from PIL import Image, UnidentifiedImageError
 
-from apps.calculator.utils import read_scribble
+from apps.calculator.utils import read_skribbl
 from schema import ImageData
 
 logger = logging.getLogger("aicalc.route")
@@ -50,7 +50,7 @@ async def calculate(data: ImageData):
 
     try:
         data_out = await asyncio.to_thread(
-            read_scribble,
+            read_skribbl,
             image,
             dict_of_vars=dict_of_vars,
             subject=subject,

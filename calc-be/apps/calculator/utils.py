@@ -114,7 +114,7 @@ def _parse_loot(text: str) -> Optional[List[Any]]:
     return None
 
 
-def read_scribble(
+def read_skribbl(
     img: Image.Image,
     dict_of_vars: Optional[Dict[str, Any]] = None,
     subject: str = "math",
@@ -149,7 +149,7 @@ def read_scribble(
         err_msg = str(e)
         if ("429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg) and retry_count < len(GEMINI_API_KEYS) - 1:
             if _key_shuffle():
-                return read_scribble(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count+1, parse_retry_count=parse_retry_count)
+                return read_skribbl(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count+1, parse_retry_count=parse_retry_count)
         
         logger.exception("Gemini API call failed")
         return {"results": [{"expr": "AI Error", "result": err_msg, "assign": False}], "usage": {}}
@@ -169,7 +169,7 @@ def read_scribble(
     if parsed is None:
         # Retry once with stricter prompt on parse failure
         if parse_retry_count < 1:
-            return read_scribble(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count, parse_retry_count=parse_retry_count+1)
+            return read_skribbl(img, dict_of_vars, subject, include_steps=include_steps, retry_count=retry_count, parse_retry_count=parse_retry_count+1)
         
         # If strict retry also failed, return error
         logger.error(">>> Parse failed even with strict prompt. Raw response: %s", text[:200])
