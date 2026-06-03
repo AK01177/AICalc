@@ -1,247 +1,201 @@
-# AICalc - AI-Powered Calculator
+<div align="center">
+  <img src="https://via.placeholder.com/150x150.png?text=AICalc+Logo" alt="AICalc Logo" width="120" />
 
-Draw math, physics, or chemistry problems and get instant AI solutions.
+  # 🧮 AICalc - AI-Powered Visual Calculator
 
-**Live:** [https://ai-calc-dusky.vercel.app](https://ai-calc-dusky.vercel.app) | **Backend:** https://aicalc-nvif.onrender.com
+  **Draw math, physics, or chemistry problems and get instant AI solutions.**
 
----
+  [![Frontend - Vercel](https://img.shields.io/badge/Frontend-Vercel-black?logo=vercel)](#)
+  [![Backend - Render](https://img.shields.io/badge/Backend-Render-46E3B7?logo=render)](#)
+  [![Model - Gemini 2.5 Flash](https://img.shields.io/badge/AI-Gemini%202.5%20Flash-blue?logo=google)](#)
+  [![React - v18](https://img.shields.io/badge/React-v18-61DAFB?logo=react)](#)
+  [![FastAPI - Python](https://img.shields.io/badge/FastAPI-Python-009688?logo=fastapi)](#)
 
-## Overview
+  **[Live Demo](https://ai-calc-dusky.vercel.app)** | **[Backend Health](https://aicalc-nvif.onrender.com/healthz)**
 
-| Aspect | Details |
-|--------|---------|
-| **Purpose** | Draw problem → Get AI solution + steps |
-| **Model** | Google Gemini 2.5 Flash |
-| **Subjects** | Math, Physics, Chemistry |
-| **Frontend** | React 18 + TypeScript + Vite (v5.4.0) + perfect-freehand + react-katex |
-| **Backend** | FastAPI + Uvicorn + Gunicorn (Python 3.9+) |
-| **Input** | Base64 image (PNG) |
-| **Output** | JSON: expr, result, steps[], assign flag, token usage |
-| **Deployment** | Frontend: Vercel | Backend: Render |
+</div>
 
 ---
 
-## Project Structure
 
-```
-calc-fe/                  # Frontend v3.0.0
-├── src/
-│   ├── App.tsx         # Canvas, drawing, text mode, text boxes, drag/resize/delete, solve
-│   ├── index.css       # Windows 95 UI, text box styles, responsive mobile
-│   ├── main.tsx        # React entry point
-│   └── vite-env.d.ts   # Vite type definitions
-├── package.json        # React 18.3.1, KaTeX 0.16.45, perfect-freehand 1.2.3
-├── vite.config.ts      # Proxy: /api → localhost:8900, React plugin
-├── tsconfig.json       # TypeScript config
-└── vercel.json         # Vercel deployment
+## 📸 See It In Action
 
-calc-be/                  # Backend v2.0.0
-├── main.py             # FastAPI app, CORS, /healthz, /calculate routes
-├── apps/calculator/
-│   ├── route.py        # POST /calculate endpoint, base64 decode, request validation
-│   └── utils.py        # Gemini API calls, prompt building, response parsing, key rotation
-├── schema.py           # ImageData model (image, subject, dict_of_vars, include_steps)
-├── constants.py        # Env config: GEMINI_API_KEYS, PORT, ENV, SERVER_URL, GEMINI_MODEL
-├── requirements.txt    # FastAPI, Pillow, google-genai, pydantic, uvicorn, gunicorn
-├── gunicorn_config.py  # 4 workers, preload app, optimized logging
-├── render.yaml         # Render deployment config
-└── Procfile            # Heroku-compatible (if needed)
-```
+<div align="center">
+  <img src="./photos/Maths_Example.png" alt="AICalc Demo - Maths" width="80%" />
+</div>
+<br/>
+<div align="center">
+  <img src="./photos/Chemistry_Example_WithSteps.png" alt="Chemistry Demo with Steps" width="80%" />
+</div>
 
 ---
 
-## Features
+## 📖 Overview
 
-- **Canvas Drawing**: Freehand with perfect-freehand (smooth strokes)
-- **Text Mode**: Add, drag, resize, and edit text boxes on canvas; baked into image before solving
-- **Colors**: 6 swatches (#000080, #000000, #ff0000, #008000, #800080, #808080)
-- **Eraser**: Clear individual strokes
-- **Step-by-Step**: Toggle for detailed explanation or final answer only
-- **Token Tracking**: Cumulative usage stored in localStorage
-- **Mobile Responsive**: Adaptive UI for ≤768px
-- **Windows 95 UI**: Retro-style interface with proper visual feedback
-- **Backend Warmup**: Auto-ping health endpoint on load + 14-min keep-alive
-- **Retry Logic**: 2x retry on timeout/error before failing
-- **Multi-Key Support**: Key rotation on quota exhaustion
-- **CORS**: Configured for local dev and production URLs
+**AICalc** is a highly interactive, retro-styled (Windows 95) web application that bridges the gap between hand-written equations and structured AI computation. Users can draw or type complex STEM problems onto a digital canvas, and the system leverages Google's **Gemini 2.5 Flash** vision model to extract, solve, and render the results seamlessly back to the UI using LaTeX.
+
+Designed with both **user experience** and **backend resilience** in mind, it handles everything from stroke smoothing to automated API key rotation under the hood.
 
 ---
 
-## Setup
+## 🎥 Demo
 
-**Prerequisites:** Node.js 18+, Python 3.9+, Google API Key
+<div align="center">
+  <img src="./photos/demo.gif" alt="AICalc Video Demo" width="80%" />
+</div>
 
-### Backend
+---
+
+## ✨ Features (The Details Matter)
+
+I built this project to ensure a flawless experience, taking care of edge cases and performance bottlenecks:
+
+### 🎨 Canvas & User Experience
+- **Smooth Freehand Drawing:** Utilizes `perfect-freehand` with a custom Catmull-Rom-style interpolation. It calculates pressure curves dynamically so handwriting looks natural and legible.
+- **Drag & Drop Text Mode:** Don't want to draw? Add text boxes! You can drag them by the header, resize them from the corner, delete them, and place them anywhere on the canvas.
+  <br/><br/><img src="./photos/Text_Box_Example.png" width="600" alt="Text Box Example"/><br/>
+- **Draggable Results Window:** The solution card isn't static. You can drag and resize it around the screen so it doesn't block your drawing.
+- **Tooling Suite:** Adjustable brush sizes (1-15), 6 curated colors, and a dedicated Eraser mode.
+- **KaTeX Integration:** All mathematical results are rendered natively with `react-katex` for crisp, textbook-quality formatting.
+- **Windows 95 Aesthetic:** A nostalgic UI with properly styled buttons, borders, and visual feedback that adapts perfectly to mobile screens (bottom drawer controls).
+
+### 🧠 AI & Backend Logic
+- **Subject-Specific Prompts:** Select between Math, Physics, or Chemistry. The backend alters the system prompt to enforce domain-specific strictness.
+  <br/><br/><img src="./photos/Physics_Example.png" width="600" alt="Physics Example"/><br/>
+- **Step-by-Step Breakdowns:** Toggle the "Show Steps" feature. When enabled, the AI returns a JSON array of step-by-step explanations, parsed and rendered sequentially on the frontend.
+  <br/><br/><img src="./photos/Katex_with_Steps.png" width="600" alt="KaTeX Steps Example"/><br/>
+- **Text-to-Canvas Baking:** Before sending the request to the AI, all DOM-based text boxes are strictly formatted and drawn (baked) directly onto the pixel raster to ensure the Vision model sees exactly what the user sees.
+
+### ⚡ Performance & Cost Optimizations
+- **Smart Blank-Canvas Detection:** The frontend samples every 40th pixel on the canvas. If the ink threshold isn't met, it blocks the API call. *Saves money by preventing empty queries.*
+- **Pre-Flight Image Compression:** The canvas is downscaled to a maximum dimension of 768px before being sent to the backend, drastically reducing the payload size and the number of Gemini Vision tokens consumed.
+- **Token Tracking:** Cumulative AI token usage is parsed from the API response and stored persistently in `localStorage`.
+- **Render.com Keep-Alive:** Render free-tier spins down after 15 minutes. The frontend implements a 14-minute heartbeat ping and a proactive wake-up script on initial load to ensure the backend is hot when the user is ready.
+- **Smart Retries & Error Parsing:** 
+  - Network timeouts are met with an exponential backoff retry.
+  - Server catches specific errors: 429 (Rate Limit), 400 (Safety/NSFW), and 503 (Cold Start) and relays human-readable messages to the UI.
+- **AI Output Parsing Resilience:** AI models don't always output perfect JSON. The backend employs a 2-pass prompt retry system. If JSON parsing fails, it re-queries the model with a much stricter formatting prompt.
+- **API Key Rotation:** When the primary Gemini API key hits a 429 quota exhaustion limit, the backend automatically rotates to the next available fallback key using thread-safe locking.
+
+---
+
+## 🏗️ Architecture & Flow
+
+1. **Input:** User draws strokes or adds text boxes on the React Canvas.
+2. **Pre-processing:** React flattens text boxes into the canvas pixels, downscales the image to ≤768px, and converts it to a Base64 PNG.
+3. **Transport:** Payload (Image + Subject + Steps flag) is POSTed to the FastAPI backend.
+4. **AI Processing:** FastAPI decodes the image, builds a strict LaTeX/JSON prompt, and queries the `gemini-2.5-flash` model.
+5. **Parsing:** The response is cleaned (stripping markdown fences), validated as JSON, and structured.
+6. **Output:** The React frontend receives the JSON and renders the expressions using KaTeX in a draggable results window.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+
+- Python 3.9+
+- A Google Gemini API Key
+
+### Backend Setup (FastAPI)
 ```bash
 cd calc-be
-python -m venv venv && source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install -r requirements.txt
-echo GEMINI_API_KEY=your_key > .env && echo SERVER_URL=localhost >> .env && echo PORT=8900 >> .env && echo ENV=dev >> .env
-python main.py  # http://localhost:8900
-```
+python -m venv venv
+source venv/bin/activate  # On Windows use: venv\Scripts\activate
 
-### Frontend
+pip install -r requirements.txt
+
+# Environment Setup
+echo GEMINI_API_KEYS="your_key_1,your_key_2" > .env
+echo SERVER_URL="localhost" >> .env
+echo PORT=8900 >> .env
+echo ENV="dev" >> .env
+
+# Run the server
+python main.py
+```
+*Backend runs on `http://localhost:8900`*
+
+### Frontend Setup (React/Vite)
 ```bash
 cd calc-fe
 npm install
-npm run dev  # http://localhost:5173
-```
 
-Set `VITE_API_BASE=http://localhost:8900` in `.env` if dev proxy fails.
+# Run the dev server
+npm run dev
+```
+*Frontend runs on `http://localhost:5173`. It automatically proxies `/api` to the backend.*
 
 ---
 
-## API Endpoints
+## 📡 API Reference
 
-**Health Check:**
-```
-GET /healthz → { "status": "ok", "version": "2.0.0" }
-```
+### `GET /healthz`
+Wakes up the server and checks status.
+**Response:** `{ "status": "ok", "version": "2.0.0" }`
 
-**Calculate:**
-```
-POST /calculate
+### `POST /calculate`
+Process the canvas image and get the solution.
+
+**Body:**
+```json
 {
   "image": "data:image/png;base64,...",
-  "subject": "math" | "physics" | "chemistry",
+  "subject": "math",
   "dict_of_vars": {},
   "include_steps": true
 }
+```
 
-→ {
+**Response:**
+```json
+{
   "message": "Image processed successfully",
   "status": "success",
   "data": [
     {
-      "expr": "LaTeX expr",
-      "result": "LaTeX result",
-      "steps": [{"explanation": "..."}],
+      "expr": "x^2 = 4",
+      "result": "x = \\pm 2",
+      "steps": [{"explanation": "Take the square root of both sides"}],
       "assign": false
     }
   ],
-  "usage": { "prompt_tokens": N, "completion_tokens": N, "total_tokens": N }
+  "usage": { "prompt_tokens": 120, "completion_tokens": 45, "total_tokens": 165 }
 }
 ```
 
 ---
 
-## Deployment
+## 📁 Project Structure
 
-| Platform | URL | Config | Auto Deploy |
-|----------|-----|--------|------------|
-| **Frontend** | https://ai-calc-dusky.vercel.app | calc-fe/vercel.json | Push to main |
-| **Backend** | https://aicalc-nvif.onrender.com | calc-be/render.yaml | Push to main |
-
-**Env Vars (Backend - Render):**
-- `GEMINI_API_KEY`: Your Google API key (supports comma-separated for rotation)
-- `GEMINI_MODEL`: Override model (default: gemini-2.5-flash)
-- `ENV`: prod or dev
-- `PORT`: Auto-assigned by Render
-- `SERVER_URL`: 0.0.0.0
-
----
-
-## Technical Details
-
-**Frontend (App.tsx):**
-- Canvas state: points, drawing, eraser mode, text mode, text boxes
-- Subjects: ["math", "physics", "chemistry"]
-- Colors: 6 swatches (#000080, #000000, #ff0000, #008000, #800080, #808080)
-- Brush size: 1-15
-- **Text Mode Features:**
-  - Create text boxes via click (isTextMode enabled)
-  - Drag via header (grab cursor, active=grabbing)
-  - Resize via corner handle (se-resize cursor)
-  - Delete via close button (✕)
-  - Contenteditable input with placeholder "Type here..."
-  - Text boxes baked into canvas before solving (Share Tech Mono font, 14px)
-- Results display with KaTeX math rendering
-- Token tracking in localStorage
-- Retry logic: 2x attempts with exponential backoff
-- Model display: `VITE_MODEL_NAME` env var or "GEMINI 2.5 FLASH"
-- **UI:** Windows 95-style buttons, text boxes with blue gradient headers, responsive (240px desktop | mobile bottom drawer)
-
-**Backend (utils.py):**
-- Image → PNG bytes → Gemini API call
-- Prompt engineering: subject-specific directives, LaTeX requirement, JSON format
-- Response parsing: json.loads, ast.literal_eval, regex fallback
-- Error handling: 429 quota exhaustion triggers key rotation
-- Token counting: prompt_tokens, completion_tokens, total_tokens
-
-**Schema (schema.py):**
-```python
-class ImageData(BaseModel):
-    image: str
-    dict_of_vars: dict
-    subject: Optional[str] = "math"
-    include_steps: bool = True
+```text
+AICalc/
+├── calc-fe/                  # React Frontend
+│   ├── src/
+│   │   ├── App.tsx           # Core logic: Canvas, Drag/Drop, State, API calls
+│   │   ├── index.css         # Windows 95 UI styling
+│   │   └── main.tsx          # React Entry
+│   └── vite.config.ts        # Vite config with API proxying
+│
+└── calc-be/                  # FastAPI Backend
+    ├── main.py               # App init, CORS, Routes
+    ├── apps/calculator/
+    │   ├── route.py          # /calculate endpoint logic
+    │   └── utils.py          # Gemini integration, Key Rotation, Prompt Eng.
+    ├── schema.py             # Pydantic validation models
+    └── constants.py          # Environment configs
 ```
 
 ---
 
-## Troubleshooting
+## 👨‍💻 Author
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| Backend slow (30-60s) | Render free tier cold start | Frontend auto-warms on load; upgrade for instant start |
-| Backend offline | Free tier 15-min auto-spindown | Frontend 14-min keep-alive pings health endpoint |
-| CORS errors | Different domains | Already configured for localhost + production URLs |
-| Image not recognized | Small/unclear drawing | Draw larger, clearer lines |
-| 429 quota error | API key limit hit | Add comma-separated keys; auto-rotates |
+**Aryan Ranavat**
 
----
-
-## Performance Optimizations
-
-**Frontend:**
-- Health ping on app load (60s timeout)
-- 14-min heartbeat to prevent spindown
-- Retry logic with exponential backoff
-- localStorage for token persistence
-
-**Backend:**
-- 4 Gunicorn workers
-- App preload (shared across workers)
-- Minimal logging
-- Lazy imports
+*Feel free to reach out or connect!*
+- **Portfolio:** [Your Portfolio Link Here](#)
+- **LinkedIn:** [Your LinkedIn Link Here](#)
+- **GitHub:** [@your-github-username](https://github.com/your-github-username)
 
 ---
-
-## Development
-
-**Build Frontend:**
-```bash
-cd calc-fe && npm run build
-```
-
-**Type Check:**
-```bash
-npm run type-check
-```
-
-**Lint:**
-```bash
-npm run lint && npm run lint:fix
-```
-
----
-
-## Files Reference
-
-| File | Purpose |
-|------|---------|
-| calc-be/main.py | FastAPI app init, CORS, /healthz, /calculate router |
-| calc-be/apps/calculator/route.py | POST /calculate, image decode (base64→PNG), Gemini API call |
-| calc-be/apps/calculator/utils.py | analyze_image(), prompt builder, response parser, key rotation, token usage |
-| calc-be/schema.py | ImageData Pydantic model (image, subject, dict_of_vars, include_steps) |
-| calc-be/constants.py | Env config loading (GEMINI_API_KEYS, PORT, ENV, SERVER_URL, GEMINI_MODEL) |
-| calc-fe/src/App.tsx | Canvas, drawing, text mode, text boxes, drag/resize, solve logic, UI controls |
-| calc-fe/src/index.css | Windows 95 UI theme, text box styling, responsive mobile layout |
-| calc-fe/vite.config.ts | Vite proxy (/api → localhost:8900) + React plugin |
-| calc-fe/package.json | React 18.3.1, KaTeX 0.16.45, perfect-freehand 1.2.3, TypeScript 5.5.3
-
----
-
-## License & Author
-
-MIT License | Created by Aryan Ranavat
+*If you like this project, please consider leaving a ⭐ on the repository!*
