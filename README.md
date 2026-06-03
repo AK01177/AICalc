@@ -1,7 +1,6 @@
 <div align="center">
-  <img src="https://via.placeholder.com/150x150.png?text=AICalc+Logo" alt="AICalc Logo" width="120" />
-
-  # 🧮 AICalc - AI-Powered Visual Calculator
+  
+  ## 🧮 AICalc - AI-Powered Visual Calculator
 
   **Draw math, physics, or chemistry problems and get instant AI solutions.**
 
@@ -17,43 +16,25 @@
 
 ---
 
-
-## 📸 See It In Action
-
-<div align="center">
-  <img src="./photos/Maths_Example.png" alt="AICalc Demo - Maths" width="80%" />
-</div>
-<br/>
-<div align="center">
-  <img src="./photos/Chemistry_Example_WithSteps.png" alt="Chemistry Demo with Steps" width="80%" />
-</div>
-
----
-
 ## 📖 Overview
 
-**AICalc** is a highly interactive, retro-styled (Windows 95) web application that bridges the gap between hand-written equations and structured AI computation. Users can draw or type complex STEM problems onto a digital canvas, and the system leverages Google's **Gemini 2.5 Flash** vision model to extract, solve, and render the results seamlessly back to the UI using LaTeX.
-
-Designed with both **user experience** and **backend resilience** in mind, it handles everything from stroke smoothing to automated API key rotation under the hood.
+**AICalc** is a highly interactive, web application that bridges the gap between hand-written equations and structured AI computation. Users can draw problems onto a digital canvas, and the system leverages Google's **Gemini 2.5 Flash** vision model to extract, solve, and render the results seamlessly back to the UI in Latex Format.
 
 ---
 
-## 🎥 Demo
-
+## 📸 See It In Action
 <div align="center">
-  <img src="./photos/demo.gif" alt="AICalc Video Demo" width="80%" />
+  <img src="./photos/demo.gif" alt="Video Demo" width="80%" />
 </div>
 
 ---
 
-## ✨ Features (The Details Matter)
-
-I built this project to ensure a flawless experience, taking care of edge cases and performance bottlenecks:
+## ✨ Features
 
 ### 🎨 Canvas & User Experience
 - **Smooth Freehand Drawing:** Utilizes `perfect-freehand` with a custom Catmull-Rom-style interpolation. It calculates pressure curves dynamically so handwriting looks natural and legible.
 - **Drag & Drop Text Mode:** Don't want to draw? Add text boxes! You can drag them by the header, resize them from the corner, delete them, and place them anywhere on the canvas.
-  <br/><br/><img src="./photos/Text_Box_Example.png" width="600" alt="Text Box Example"/><br/>
+  <div align="center"><br/><br/><img src="./photos/Text_Box_Example.png" width="600" alt="Text Box Example"/><br/></div>
 - **Draggable Results Window:** The solution card isn't static. You can drag and resize it around the screen so it doesn't block your drawing.
 - **Tooling Suite:** Adjustable brush sizes (1-15), 6 curated colors, and a dedicated Eraser mode.
 - **KaTeX Integration:** All mathematical results are rendered natively with `react-katex` for crisp, textbook-quality formatting.
@@ -61,9 +42,11 @@ I built this project to ensure a flawless experience, taking care of edge cases 
 
 ### 🧠 AI & Backend Logic
 - **Subject-Specific Prompts:** Select between Math, Physics, or Chemistry. The backend alters the system prompt to enforce domain-specific strictness.
+  <div align="center"><br/><br/><img src="./photos/Maths_Example.png" width="600" alt="Maths Example"/><br/>
   <br/><br/><img src="./photos/Physics_Example.png" width="600" alt="Physics Example"/><br/>
+  <br/><br/><img src="./photos/Chemistry_Example_WithSteps.png" width="600" alt="Chemistry Example"/><br/></div>
 - **Step-by-Step Breakdowns:** Toggle the "Show Steps" feature. When enabled, the AI returns a JSON array of step-by-step explanations, parsed and rendered sequentially on the frontend.
-  <br/><br/><img src="./photos/Katex_with_Steps.png" width="600" alt="KaTeX Steps Example"/><br/>
+  <div align="center"><br/><br/><img src="./photos/Katex_with_Steps.png" width="600" alt="KaTeX Steps Example"/><br/></div>
 - **Text-to-Canvas Baking:** Before sending the request to the AI, all DOM-based text boxes are strictly formatted and drawn (baked) directly onto the pixel raster to ensure the Vision model sees exactly what the user sees.
 
 ### ⚡ Performance & Cost Optimizations
@@ -191,11 +174,6 @@ AICalc/
 ## 👨‍💻 Author
 
 **Aryan Ranavat**
-
-*Feel free to reach out or connect!*
-- **Portfolio:** [Your Portfolio Link Here](#)
-- **LinkedIn:** [Your LinkedIn Link Here](#)
-- **GitHub:** [@your-github-username](https://github.com/your-github-username)
 
 ---
 *If you like this project, please consider leaving a ⭐ on the repository!*
