@@ -1,6 +1,6 @@
 <div align="center">
   
-  ## 🧮 AICalc - Inspired By IPad Calculator for Mutli-Platforms
+  ##  AICalc - Inspired By IPad Calculator for Mutli-Platforms
 
   **Draw math, physics, or chemistry problems and get instant AI solutions.**
 
@@ -16,22 +16,22 @@
 
 ---
 
-## 📖 Overview
+##  Overview
 
 **AICalc** is a highly interactive, web application that bridges the gap between hand-written equations and structured AI computation. Users can draw problems onto a digital canvas, and the system leverages Google's **Gemini 2.5 Flash** vision model to extract, solve, and render the results seamlessly back to the UI in Latex Format.
 
 ---
 
-## 📸 See It In Action
+##  See It In Action
 <div align="center">
   <img src="./photos/demo.gif" alt="Video Demo" width="80%" />
 </div>
 
 ---
 
-## ✨ Features
+##  Features
 
-### 🎨 Canvas & User Experience
+###  Canvas & User Experience
 - **Smooth Freehand Drawing:** Utilizes `perfect-freehand` with a custom Catmull-Rom-style interpolation. It calculates pressure curves dynamically so handwriting looks natural and legible.
 - **Drag & Drop Text Mode:** Don't want to draw? Add text boxes! You can drag them by the header, resize them from the corner, delete them, and place them anywhere on the canvas.
   <div align="center"><br/><br/><img src="./photos/Text_Box_Example.png" width="600" alt="Text Box Example"/><br/></div>
@@ -40,7 +40,7 @@
 - **KaTeX Integration:** All mathematical results are rendered natively with `react-katex` for crisp, textbook-quality formatting.
 - **Windows 95 Aesthetic:** A nostalgic UI with properly styled buttons, borders, and visual feedback that adapts perfectly to mobile screens (bottom drawer controls).
 
-### 🧠 AI & Backend Logic
+###  AI & Backend Logic
 - **Subject-Specific Prompts:** Select between Math, Physics, or Chemistry. The backend alters the system prompt to enforce domain-specific strictness.
   <div align="center"><br/><br/><img src="./photos/Maths_Example.png" width="600" alt="Maths Example"/><br/>
   <br/><br/><img src="./photos/Physics_Example.png" width="600" alt="Physics Example"/><br/>
@@ -49,7 +49,7 @@
   <div align="center"><br/><br/><img src="./photos/Katex_with_Steps.png" width="600" alt="KaTeX Steps Example"/><br/></div>
 - **Text-to-Canvas Baking:** Before sending the request to the AI, all DOM-based text boxes are strictly formatted and drawn (baked) directly onto the pixel raster to ensure the Vision model sees exactly what the user sees.
 
-### ⚡ Performance & Cost Optimizations
+###  Performance & Cost Optimizations
 - **Smart Blank-Canvas Detection:** The frontend samples every 40th pixel on the canvas. If the ink threshold isn't met, it blocks the API call. *Saves money by preventing empty queries.*
 - **Pre-Flight Image Compression:** The canvas is downscaled to a maximum dimension of 768px before being sent to the backend, drastically reducing the payload size and the number of Gemini Vision tokens consumed.
 - **Token Tracking:** Cumulative AI token usage is parsed from the API response and stored persistently in `localStorage`.
@@ -62,7 +62,7 @@
 
 ---
 
-## 🏗️ Architecture & Flow
+##  Architecture & Flow
 
 1. **Input:** User draws strokes or adds text boxes on the React Canvas.
 2. **Pre-processing:** React flattens text boxes into the canvas pixels, downscales the image to ≤768px, and converts it to a Base64 PNG.
@@ -73,7 +73,7 @@
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### Prerequisites
 - Node.js 18+
@@ -111,7 +111,7 @@ npm run dev
 
 ---
 
-## 📡 API Reference
+##  API Reference
 
 ### `GET /healthz`
 Wakes up the server and checks status.
@@ -149,7 +149,7 @@ Process the canvas image and get the solution.
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```text
 AICalc/
@@ -171,7 +171,7 @@ AICalc/
 
 ---
 
-## 👨‍💻 Author
+##  Author
 
 **Aryan Ranavat**
 
