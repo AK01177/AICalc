@@ -1,6 +1,6 @@
 <div align="center">
   
-  ## 🧮 AICalc - AI-Powered Visual Calculator
+  ## 🧮 AICalc - Inspired By IPad Calculator for Mutli-Platforms
 
   **Draw math, physics, or chemistry problems and get instant AI solutions.**
 
