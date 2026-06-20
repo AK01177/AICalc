@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 import binascii
 import logging
@@ -49,8 +48,7 @@ async def calculate(data: ImageData):
     )
 
     try:
-        data_out = await asyncio.to_thread(
-            read_skribbl,
+        data_out = await read_skribbl(
             image,
             dict_of_vars=dict_of_vars,
             subject=subject,

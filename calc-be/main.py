@@ -28,9 +28,10 @@ app = FastAPI(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled exception occurred")
+    detail = str(exc) if ENV == "dev" else "An unexpected error occurred. Please try again."
     return JSONResponse(
         status_code=500,
-        content={"message": "Internal Server Error", "data": [], "status": "error", "detail": str(exc)},
+        content={"message": "Internal Server Error", "data": [], "status": "error", "detail": detail},
     )
 
 origins = [
