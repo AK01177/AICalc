@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, PointerEvent, MouseEvent } from "react";
 import { getStroke } from "perfect-freehand";
 import "katex/dist/katex.min.css";
 import { InlineMath } from "react-katex";
@@ -10,465 +10,253 @@ const API = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 type Step = { explanation: string };
 type SolveResult = { expr: string; result: string; steps?: Step[] };
 type GeminiResponse = { data?: SolveResult[]; usage?: { total_tokens?: number } };
-type TextBox = { id: string; x: number; y: number; width: number; height: number; text: string };
+type TextBox = { id: string; x: number; y: number; w: number; h: number; text: string };
 
 export default function App() {
-  const [penColor, setPenColor] = useState(PEN_COLORS[0]);
-  const [brushSize, setBrushSize] = useState(3);
-  const [subject, setSubject] = useState(SUBJECTS[0]);
-  const [solveResults, setSolveResults] = useState<SolveResult[]>([]);
-  const [solving, setSolving] = useState(false);
-  const [errMsg, setErrMsg] = useState<string | null>(null);
-  const [showSteps, setShowSteps] = useState(false);
-  const [eraserOn, setEraserOn] = useState(false);
-  const [textMode, setTextMode] = useState(false);
-  const [canvasDirty, setCanvasDirty] = useState(false);
-  const [totalTokens, setTotalTokens] = useState(0);
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const [onMobile, setOnMobile] = useState(false);
-  const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
-  const [focusedBoxId, setFocusedBoxId] = useState<string | null>(null);
-  const [resultsAreaPos, setResultsAreaPos] = useState({ x: 0, y: 0, width: 500, height: 400 });
+  const [ui, setUi] = useState({ pen: PEN_COLORS[0], size: 3, sub: SUBJECTS[0], steps: false, mode: "draw", tools: false, mobile: false });
+  const [data, setData] = useState({ results: [] as SolveResult[], err: null as string | null, tokens: 0, solving: false, dirty: false });
+  const [boxes, setBoxes] = useState<TextBox[]>([]);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [resPos, setResPos] = useState({ x: 0, y: 0, w: 500, h: 400 });
 
-  const dragState = useRef<{id: string; startX: number; startY: number; origX: number; origY: number} | null>(null);
-  const resizeState = useRef<{id: string; startX: number; startY: number; origW: number; origH: number} | null>(null);
-  const resultsDragState = useRef<{startX: number; startY: number; origX: number; origY: number} | null>(null);
-  const resultsResizeState = useRef<{startX: number; startY: number; origW: number; origH: number} | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const ctx2d = useRef<CanvasRenderingContext2D | null>(null);
-  const strokePoints = useRef<number[][]>([]);
-  const isDrawing = useRef(false);
-  const preStrokeSnap = useRef<ImageData | null>(null);
+  const refs = useRef({
+    action: null as any, wrapper: null as HTMLDivElement | null, cv: null as HTMLCanvasElement | null,
+    ctx: null as CanvasRenderingContext2D | null, pts: [] as number[][], snap: null as ImageData | null
+  });
 
   useEffect(() => {
     const t = localStorage.getItem("aicalc_total_tokens");
-    if (t) setTotalTokens(+t);
+    if (t) setData(d => ({ ...d, tokens: +t }));
+    const chk = () => setUi(u => ({ ...u, mobile: window.innerWidth <= 768 }));
+    chk(); window.addEventListener("resize", chk);
+
+    fetch(`${API || "/api"}/healthz`).catch(() => { });
+    const iv = setInterval(() => fetch(`${API || "/api"}/healthz`).catch(() => { }), 840000);
+    return () => { window.removeEventListener("resize", chk); clearInterval(iv); };
   }, []);
 
   useEffect(() => {
-    const check = () => setOnMobile(window.innerWidth <= 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
-  useEffect(() => {
-    const centerResults = () => {
-      if (wrapperRef.current) {
-        const { width, height } = wrapperRef.current.getBoundingClientRect();
-        setResultsAreaPos(p => ({
-          ...p,
-          x: Math.max(0, (width - p.width) / 2),
-          y: Math.max(0, (height - p.height) / 2),
-        }));
-      }
+    const r = () => {
+      const w = refs.current.wrapper;
+      if (w) setResPos(p => ({ ...p, x: Math.max(0, (w.clientWidth - p.w) / 2), y: Math.max(0, (w.clientHeight - p.h) / 2) }));
     };
-    centerResults();
-    window.addEventListener("resize", centerResults);
-    return () => window.removeEventListener("resize", centerResults);
+    r(); window.addEventListener("resize", r);
+    return () => window.removeEventListener("resize", r);
   }, []);
 
-  // render.com free tier spins down after 15min idle,
-  // cold starts take 30-50s so we wake it early and keep poking
-  useEffect(() => {
-    const url = API ? `${API}/healthz` : "/api/healthz";
-    let n = 0;
-    const wakeUp: () => void = () => {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 10000);
-      fetch(url, { signal: ctrl.signal })
-        .then(r => { clearTimeout(t); if (r.ok) console.log("backend awake"); else throw 0; })
-        .catch(() => {
-          clearTimeout(t);
-          if (n++ < 5) setTimeout(wakeUp, Math.min(1000 * 1.5 ** n, 10000));
-        });
-    };
-    wakeUp();
-    // 14min keeps render alive (its timeout is 15min)
-    const iv = setInterval(() => fetch(url).catch(() => {}), 14 * 60 * 1000);
-    return () => clearInterval(iv);
-  }, []);
-
-  function resetCanvas() {
-    const cv = canvasRef.current;
+  const resetCanvas = () => {
+    const { cv } = refs.current;
     if (!cv) return;
-    const ctx = cv.getContext("2d", { alpha: false, willReadFrequently: true });
-    if (!ctx) return;
+    const ctx = cv.getContext("2d", { willReadFrequently: true })!;
     const dpr = window.devicePixelRatio || 1;
     const { width, height } = cv.getBoundingClientRect();
-    cv.width = width * dpr;
-    cv.height = height * dpr;
-    ctx.scale(dpr, dpr);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, width, height);
-    ctx2d.current = ctx;
-  }
+    cv.width = width * dpr; cv.height = height * dpr;
+    ctx.scale(dpr, dpr); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, width, height);
+    refs.current.ctx = ctx;
+  };
 
-  // preserve existing drawing across window resize
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const cv = canvasRef.current;
-    if (!cv) return;
     resetCanvas();
     const obs = new ResizeObserver(() => {
-      const backup = cv.toDataURL();
+      const b = refs.current.cv?.toDataURL();
       resetCanvas();
-      const img = new Image();
-      img.onload = () => ctx2d.current?.drawImage(img, 0, 0,
-        cv.width / (window.devicePixelRatio || 1),
-        cv.height / (window.devicePixelRatio || 1));
-      img.src = backup;
+      if (b) { const i = new Image(); i.onload = () => refs.current.ctx?.drawImage(i, 0, 0, refs.current.cv!.width / (window.devicePixelRatio || 1), refs.current.cv!.height / (window.devicePixelRatio || 1)); i.src = b; }
     });
-    obs.observe(cv);
+    obs.observe(refs.current.cv!);
     return () => obs.disconnect();
   }, []);
 
-  // redraws full stroke from pre-stroke snapshot each frame so
-  // perfect-freehand recalculates pressure curves properly
-  function redrawStroke() {
-    const ctx = ctx2d.current;
-    if (!ctx || !strokePoints.current.length || !preStrokeSnap.current) return;
-    ctx.putImageData(preStrokeSnap.current, 0, 0);
-
-    let pts = strokePoints.current;
-    if (pts.length > 3) {
-      // cheap catmull-rom-ish interpolation, 2 midpoints per segment
-      const smooth = [pts[0]];
-      for (let i = 0; i < pts.length - 1; i++) {
-        const [a, b] = [pts[i], pts[i + 1]];
-        smooth.push(
-          [a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25, a[2]],
-          [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75, b[2]]
-        );
+  const redraw = () => {
+    const { ctx, pts, snap } = refs.current;
+    if (!ctx || !pts.length || !snap) return;
+    ctx.putImageData(snap, 0, 0);
+    let p = pts;
+    if (p.length > 3) {
+      const s = [p[0]];
+      for (let i = 0; i < p.length - 1; i++) {
+        const [a, b] = [p[i], p[i + 1]];
+        s.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25, a[2]], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75, b[2]]);
       }
-      smooth.push(pts[pts.length - 1]);
-      pts = smooth;
+      p = [...s, p[p.length - 1]];
     }
-
-    const outline = getStroke(pts, { size: brushSize * 2, thinning: .5, smoothing: .5, streamline: .5 });
+    const outline = getStroke(p, { size: ui.size * 2, thinning: .5, smoothing: .5, streamline: .5 });
     if (!outline.length) return;
-    ctx.fillStyle = eraserOn ? "#fff" : penColor;
+    ctx.fillStyle = ui.mode === "erase" ? "#fff" : ui.pen;
     ctx.beginPath();
     ctx.moveTo(outline[0][0], outline[0][1]);
     outline.forEach(([x, y]) => ctx.lineTo(x, y));
     ctx.fill();
-  }
+  };
 
-  function onCanvasPointer(e: React.PointerEvent<HTMLCanvasElement>, action: string) {
-    if (textMode) return;
-    const cv = canvasRef.current, ctx = ctx2d.current;
+  const onPt = (e: PointerEvent, act: string) => {
+    if (ui.mode === "text") return;
+    const { cv, ctx } = refs.current;
     if (!cv || !ctx) return;
     const { left, top } = cv.getBoundingClientRect();
     const pt = [e.clientX - left, e.clientY - top, e.pressure || .5];
+    if (act === "down") {
+      refs.current.pts = [pt];
+      refs.current.snap = ctx.getImageData(0, 0, cv.width, cv.height);
+      setData(d => ({ ...d, dirty: true }));
+    } else if (act === "move" && refs.current.pts.length) {
+      refs.current.pts.push(pt); redraw();
+    } else if (act === "up") refs.current.pts = [];
+  };
 
-    if (action === "down") {
-      isDrawing.current = true;
-      strokePoints.current = [pt];
-      preStrokeSnap.current = ctx.getImageData(0, 0, cv.width, cv.height);
-      setCanvasDirty(true);
-    } else if (action === "move" && isDrawing.current) {
-      strokePoints.current.push(pt);
-      redrawStroke();
-    } else if (action === "up") {
-      isDrawing.current = false;
-      strokePoints.current = [];
-    }
-  }
-
-  function placeTextBox(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!textMode || !wrapperRef.current) return;
-    const { left, top } = wrapperRef.current.getBoundingClientRect();
+  const addBox = (e: MouseEvent) => {
+    if (ui.mode !== "text" || !refs.current.wrapper) return;
+    const { left, top } = refs.current.wrapper.getBoundingClientRect();
     const id = `tb_${Date.now()}`;
-    setTextBoxes(prev => [...prev, { id, x: e.clientX - left, y: e.clientY - top, width: 180, height: 60, text: "" }]);
-    setFocusedBoxId(id);
-    setCanvasDirty(true);
-  }
+    setBoxes(b => [...b, { id, x: e.clientX - left, y: e.clientY - top, w: 180, h: 60, text: "" }]);
+    setFocusId(id); setData(d => ({ ...d, dirty: true }));
+  };
 
-  function updateBox(id: string, changes: Partial<TextBox>) {
-    setTextBoxes(prev => prev.map(b => b.id === id ? { ...b, ...changes } : b));
-  }
+  const onDrag = (e: PointerEvent) => {
+    const a = refs.current.action;
+    if (!a) return;
+    const dx = e.clientX - a.sx, dy = e.clientY - a.sy;
+    if (a.t === "mBox") setBoxes(b => b.map(x => x.id === a.id ? { ...x, x: a.ox + dx, y: a.oy + dy } : x));
+    if (a.t === "sBox") setBoxes(b => b.map(x => x.id === a.id ? { ...x, w: Math.max(100, a.ow + dx), h: Math.max(40, a.oh + dy) } : x));
+    if (a.t === "mRes") setResPos(p => ({ ...p, x: a.ox + dx, y: a.oy + dy }));
+    if (a.t === "sRes") setResPos(p => ({ ...p, w: Math.max(300, a.ow + dx), h: Math.max(100, a.oh + dy) }));
+  };
 
-  function onBoxPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const d = dragState.current, r = resizeState.current;
-    if (d) updateBox(d.id, { x: d.origX + e.clientX - d.startX, y: d.origY + e.clientY - d.startY });
-    if (r) updateBox(r.id, { width: Math.max(100, r.origW + e.clientX - r.startX), height: Math.max(40, r.origH + e.clientY - r.startY) });
+  const submit = async () => {
+    const { cv, ctx } = refs.current;
+    if (!cv || !ctx || (!boxes.some(b => b.text.trim()) && !data.dirty)) return setData(d => ({ ...d, err: "Draw something first" }));
+    setData(d => ({ ...d, solving: true, err: null }));
+    const pre = boxes.length ? ctx.getImageData(0, 0, cv.width, cv.height) : null;
 
-    const rd = resultsDragState.current, rr = resultsResizeState.current;
-    if (rd) setResultsAreaPos(p => ({ ...p, x: rd.origX + e.clientX - rd.startX, y: rd.origY + e.clientY - rd.startY }));
-    if (rr) setResultsAreaPos(p => ({ ...p, width: Math.max(300, rr.origW + e.clientX - rr.startX), height: Math.max(100, rr.origH + e.clientY - rr.startY) }));
-  }
-
-  // samples every 40th pixel to check if canvas is basically blank
-  function hasVisibleInk() {
-    const cv = canvasRef.current, ctx = ctx2d.current;
-    if (!cv || !ctx) return false;
-    const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
-    let ink = 0;
-    for (let i = 0; i < px.length; i += 160) { // r channel every 40th pixel (40*4)
-      if (px[i] < 250 || px[i+1] < 250 || px[i+2] < 250) ink++;
-    }
-    return ink >= 15; // ~15 colored samples means user drew something real
-  }
-
-  // gemini only sees rasterized canvas, not DOM overlays,
-  // so we burn text box content into the canvas pixels before sending
-  function flattenTextBoxes() {
-    const ctx = ctx2d.current;
-    if (!ctx) return;
-    for (const box of textBoxes) {
-      if (!box.text.trim()) continue;
-      ctx.save();
-      ctx.font = "14px 'Share Tech Mono', monospace";
-      ctx.fillStyle = "#000";
-      ctx.textBaseline = "top";
-      const maxW = box.width - 12;
-      const words = box.text.split(/\s+/);
-      let lines: string[] = [], line = "";
-      for (const w of words) {
-        const test = line ? `${line} ${w}` : w;
-        if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
-        else line = test;
-      }
-      if (line) lines.push(line);
-      lines.forEach((l, i) => ctx.fillText(l, box.x + 6, box.y + 24 + i * 16));
+    if (pre) {
+      ctx.save(); ctx.font = "14px 'Share Tech Mono', monospace"; ctx.fillStyle = "#000"; ctx.textBaseline = "top";
+      boxes.forEach(b => {
+        if (!b.text.trim()) return;
+        const words = b.text.split(/\s+/);
+        let line = "", y = b.y + 24;
+        for (const w of words) {
+          if (ctx.measureText(line + w).width > b.w - 12) { ctx.fillText(line, b.x + 6, y); y += 16; line = w + " "; }
+          else line += w + " ";
+        }
+        ctx.fillText(line, b.x + 6, y);
+      });
       ctx.restore();
     }
-  }
 
-  async function sendToGemini() {
-    const cv = canvasRef.current, ctx = ctx2d.current;
-    if (!cv) return;
+    try {
+      const tmp = document.createElement("canvas");
+      const sc = Math.min(1, 768 / Math.max(cv.width, cv.height));
+      tmp.width = cv.width * sc; tmp.height = cv.height * sc;
+      tmp.getContext("2d")?.drawImage(cv, 0, 0, tmp.width, tmp.height);
+      const b64 = tmp.toDataURL("image/png");
 
-    // don't burn an API call on a blank canvas
-    const hasText = textBoxes.some(b => b.text.trim());
-    if (!hasVisibleInk() && !hasText) {
-      setErrMsg("Draw or type something first");
-      return;
-    }
-
-    setSolving(true);
-    setErrMsg(null);
-
-    // snapshot before text flatten so we can restore canvas after
-    let preFlatten: ImageData | null = null;
-    if (ctx && textBoxes.length) {
-      preFlatten = ctx.getImageData(0, 0, cv.width, cv.height);
-      flattenTextBoxes();
-    }
-
-    let lastErr: Error | null = null;
-    for (let attempt = 0; attempt <= 2; attempt++) {
-      try {
-        // scale down to 768px max — bigger just wastes gemini tokens
-        const scale = Math.min(1, 768 / Math.max(cv.width, cv.height));
-        const tmp = document.createElement("canvas");
-        tmp.width = cv.width * scale;
-        tmp.height = cv.height * scale;
-        tmp.getContext("2d")?.drawImage(cv, 0, 0, tmp.width, tmp.height);
-
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 60000);
-        const resp = await fetch(API ? `${API}/calculate` : "/api/calculate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: tmp.toDataURL("image/png"), subject, dict_of_vars: {}, include_steps: showSteps }),
-          signal: ctrl.signal,
-        });
-        clearTimeout(timer);
-
-        if (!resp.ok) {
-          const body = (await resp.text()).slice(0, 200);
-          if (resp.status === 429) throw new Error("Rate limited by Gemini — wait a minute");
-          if (resp.status === 400 && body.includes("SAFETY"))
-            throw new Error("Gemini flagged this as unsafe — try redrawing clearer");
-          if (resp.status === 503) throw new Error("Backend still cold starting — hang on ~30s");
-          throw new Error(`Server ${resp.status}: ${body.slice(0, 100)}`);
+      let r: Response | null = null;
+      for (let i = 0; i < 3; i++) {
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 60000);
+          r = await fetch(`${API || "/api"}/calculate`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: b64, subject: ui.sub, dict_of_vars: {}, include_steps: ui.steps }),
+            signal: ctrl.signal
+          });
+          clearTimeout(timer);
+          if (r.ok) break;
+          const body = await r.text();
+          if (r.status === 429 || r.status === 400 || r.status >= 500) throw new Error(`HTTP ${r.status}: ${body.slice(0, 50)}`);
+        } catch (e: any) {
+          if (i === 2 || e.message.includes("400") || e.message.includes("429")) throw e;
+          await new Promise(res => setTimeout(res, 1500 * (i + 1)));
         }
-
-        const ct = resp.headers.get("content-type");
-        if (!ct?.includes("application/json")) throw new Error(`Bad response: ${(await resp.text()).slice(0, 100)}`);
-
-        const json = (await resp.json()) as GeminiResponse;
-        setSolveResults(json.data || []);
-        const used = json.usage?.total_tokens || 0;
-        if (used > 0) setTotalTokens(prev => {
-          const next = prev + used;
-          localStorage.setItem("aicalc_total_tokens", String(next));
-          return next;
-        });
-
-        if (preFlatten && ctx) ctx.putImageData(preFlatten, 0, 0);
-        setSolving(false);
-        return;
-      } catch (e: unknown) {
-        lastErr = e instanceof Error ? e : new Error("Unknown error");
-        const m = lastErr.message;
-        if (m.includes("Rate limited") || m.includes("unsafe")) break; // won't fix on retry
-        if (m.includes("cold starting")) break; // just needs time, not retries
-        // only retry on network/timeout errors, not server rejections
-        if (!m.includes("Server") && attempt < 2) {
-          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
-          continue;
-        }
-        break;
       }
-    }
 
-    if (preFlatten && ctx) ctx.putImageData(preFlatten, 0, 0);
-    const m = lastErr?.message || "Something went wrong";
-    setErrMsg(m.includes("Server") || m.includes("Gemini") || m.includes("cold")
-      ? m : "Backend is waking up — try again in ~30s");
-    setSolving(false);
-  }
+      const json = await r!.json() as GeminiResponse;
+      const tk = json.usage?.total_tokens || 0;
+      if (tk) localStorage.setItem("aicalc_total_tokens", String(data.tokens + tk));
+      setData(d => ({ ...d, results: json.data || [], tokens: d.tokens + tk, solving: false }));
+    } catch (e: any) {
+      setData(d => ({ ...d, err: e.message || "Error", solving: false }));
+    }
+    if (pre) ctx.putImageData(pre, 0, 0);
+  };
+
+  const Floating = ({ title, onClose, isErr, children }: any) => (
+    <div className={`results-area ${isErr ? "error-results" : ""}`} style={{ left: resPos.x, top: resPos.y, width: resPos.w, height: resPos.h }}
+      onPointerMove={onDrag} onPointerUp={() => refs.current.action = null} onPointerLeave={() => refs.current.action = null}>
+      <div className="results-area-header" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "mRes", sx: e.clientX, sy: e.clientY, ox: resPos.x, oy: resPos.y }; }}>
+        <span>{title}</span><button className="results-close-btn" onClick={onClose}>✕</button>
+      </div>
+      <div className="results-area-content">{children}</div>
+      <div className="results-area-resize" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "sRes", sx: e.clientX, sy: e.clientY, ow: resPos.w, oh: resPos.h }; }} />
+    </div>
+  );
 
   return (
-    <div className="page">
-      <header>
-        <div className="row" style={{ flex: 1 }}>
-          <strong style={{ letterSpacing: "1px" }}>AICalc by Aryan Ranavat</strong>
-        </div>
-      </header>
-
+    <div className="page" onPointerMove={onDrag} onPointerUp={() => refs.current.action = null} onPointerLeave={() => refs.current.action = null}>
+      <header><div className="row" style={{ flex: 1 }}><strong style={{ letterSpacing: "1px" }}>AICalc by Aryan Ranavat</strong></div></header>
       <div className="row top-toolbar">
-        <button onClick={sendToGemini} disabled={solving || !canvasDirty}>{solving ? "BUSY..." : "CALCULATE"}</button>
-        <button onClick={() => { resetCanvas(); setCanvasDirty(false); setSolveResults([]); setEraserOn(false); setTextMode(false); setTextBoxes([]); setFocusedBoxId(null); }}>CLEAR</button>
-        <button onClick={() => { setEraserOn(!eraserOn); setTextMode(false); }}
-          style={{ background: eraserOn ? "#808080" : "#c0c0c0", color: eraserOn ? "#fff" : "#000",
-            boxShadow: eraserOn ? "inset 2px 2px #000" : "1px 1px 0 0 var(--border-black)" }}>
-          {eraserOn ? "ERASING" : "ERASER"}
-        </button>
-        <button onClick={() => { setTextMode(!textMode); setEraserOn(false); }}
-          style={{ background: textMode ? "#808080" : "#c0c0c0", color: textMode ? "#fff" : "#000",
-            boxShadow: textMode ? "inset 2px 2px #000" : "1px 1px 0 0 var(--border-black)" }}>
-          {textMode ? "TYPING" : "TEXT"}
-        </button>
+        <button onClick={submit} disabled={data.solving || !data.dirty}>{data.solving ? "BUSY..." : "CALCULATE"}</button>
+        <button onClick={() => { resetCanvas(); setData(d => ({ ...d, dirty: false, results: [] })); setBoxes([]); setUi(u => ({ ...u, mode: "draw" })); }}>CLEAR</button>
+        {["erase", "text"].map(m => (
+          <button key={m} onClick={() => setUi(u => ({ ...u, mode: u.mode === m ? "draw" : m }))}
+            style={ui.mode === m ? { background: "#808080", color: "#fff", boxShadow: "inset 2px 2px #000" } : {}}>
+            {m === "erase" ? (ui.mode === "erase" ? "ERASING" : "ERASER") : (ui.mode === "text" ? "TYPING" : "TEXT")}
+          </button>
+        ))}
         <div className="toolbar-spacer" style={{ flex: 1 }} />
         <span className="toolbar-label">MODEL: {import.meta.env.VITE_MODEL_NAME || "GEMINI 2.5 FLASH"}</span>
-        <span className="toolbar-label">TOKENS: {totalTokens.toLocaleString()}</span>
+        <span className="toolbar-label">TOKENS: {data.tokens.toLocaleString()}</span>
       </div>
 
-      <div className="canvas-wrap" ref={wrapperRef} onPointerMove={onBoxPointerMove}
-        onPointerUp={() => { dragState.current = null; resizeState.current = null; resultsDragState.current = null; resultsResizeState.current = null; }}
-        onPointerLeave={() => { dragState.current = null; resizeState.current = null; resultsDragState.current = null; resultsResizeState.current = null; }}>
-        <canvas
-          ref={canvasRef}
-          style={{ touchAction: "none", cursor: textMode ? "text" : "crosshair" }}
-          onPointerDown={e => onCanvasPointer(e, "down")}
-          onPointerMove={e => onCanvasPointer(e, "move")}
-          onPointerUp={e => onCanvasPointer(e, "up")}
-          onPointerLeave={e => onCanvasPointer(e, "up")}
-          onClick={placeTextBox}
-        />
+      <div className="canvas-wrap" ref={el => refs.current.wrapper = el}>
+        <canvas ref={el => refs.current.cv = el} style={{ touchAction: "none", cursor: ui.mode === "text" ? "text" : "crosshair" }}
+          onPointerDown={e => onPt(e, "down")} onPointerMove={e => onPt(e, "move")} onPointerUp={e => onPt(e, "up")} onPointerLeave={e => onPt(e, "up")} onClick={addBox} />
 
-        {textBoxes.map(box => (
-          <div key={box.id} className={`text-box${focusedBoxId === box.id ? " focused" : ""}`}
-            style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
-            onPointerDown={() => setFocusedBoxId(box.id)}>
-            <div className="text-box-handle" onPointerDown={e => {
-              e.preventDefault(); e.stopPropagation();
-              dragState.current = { id: box.id, startX: e.clientX, startY: e.clientY, origX: box.x, origY: box.y };
-            }}>
-              <button className="text-box-close" onPointerDown={e => e.stopPropagation()}
-                onClick={e => { e.stopPropagation(); setTextBoxes(p => p.filter(b => b.id !== box.id)); if (focusedBoxId === box.id) setFocusedBoxId(null); }}>
-                ✕
-              </button>
+        {boxes.map(b => (
+          <div key={b.id} className={`text-box ${focusId === b.id ? "focused" : ""}`} style={{ left: b.x, top: b.y, width: b.w, height: b.h }} onPointerDown={() => setFocusId(b.id)}>
+            <div className="text-box-handle" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "mBox", id: b.id, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y }; }}>
+              <button className="text-box-close" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setBoxes(x => x.filter(y => y.id !== b.id)); }}>✕</button>
             </div>
-            <div className="text-box-content" contentEditable suppressContentEditableWarning
-              onInput={e => updateBox(box.id, { text: (e.target as HTMLDivElement).innerText })}
-              onPointerDown={e => e.stopPropagation()} />
-            <div className="text-box-resize" onPointerDown={e => {
-              e.preventDefault(); e.stopPropagation();
-              resizeState.current = { id: box.id, startX: e.clientX, startY: e.clientY, origW: box.width, origH: box.height };
-            }} />
+            <div className="text-box-content" contentEditable suppressContentEditableWarning onPointerDown={e => e.stopPropagation()} onInput={e => setBoxes(x => x.map(y => y.id === b.id ? { ...y, text: e.currentTarget.innerText } : y))} />
+            <div className="text-box-resize" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "sBox", id: b.id, sx: e.clientX, sy: e.clientY, ow: b.w, oh: b.h }; }} />
           </div>
         ))}
 
-        <div className={`controls-backdrop${toolsOpen ? " visible" : ""}`} onClick={() => setToolsOpen(false)} />
+        <div className={`controls-backdrop${ui.tools ? " visible" : ""}`} onClick={() => setUi(u => ({ ...u, tools: false }))} />
 
-        <div className={`controls${toolsOpen ? " mobile-open" : ""}`}>
+        <div className={`controls${ui.tools ? " mobile-open" : ""}`}>
           <div className="control-group">
             <span className="label">SUBJECT</span>
-            <select value={subject} onChange={e => setSubject(e.target.value)}>
+            <select value={ui.sub} onChange={e => setUi(u => ({ ...u, sub: e.target.value }))}>
               {SUBJECTS.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
             </select>
           </div>
           <div className="control-group">
-            <div className="row justify-between">
-              <span className="label">BRUSH SIZE</span>
-              <span className="val">{brushSize}</span>
-            </div>
-            <input type="range" min="1" max="15" value={brushSize} onChange={e => setBrushSize(+e.target.value)} />
+            <div className="row justify-between"><span className="label">BRUSH SIZE</span><span className="val">{ui.size}</span></div>
+            <input type="range" min="1" max="15" value={ui.size} onChange={e => setUi(u => ({ ...u, size: +e.target.value }))} />
           </div>
           <div className="control-group">
             <span className="label">COLORS</span>
-            <div className="row wrap">
-              {PEN_COLORS.map(c => (
-                <div key={c} className={`swatch ${penColor === c ? "active" : ""}`} style={{ background: c }}
-                  onClick={() => { setPenColor(c); setEraserOn(false); }} />
-              ))}
-            </div>
+            <div className="row wrap">{PEN_COLORS.map(c => <div key={c} className={`swatch ${ui.pen === c ? "active" : ""}`} style={{ background: c }} onClick={() => setUi(u => ({ ...u, pen: c, mode: "draw" }))} />)}</div>
           </div>
           <div className="control-group">
-            <label className="checkbox-label">
-              <input type="checkbox" checked={showSteps} onChange={e => setShowSteps(e.target.checked)} />
-              <span>SHOW STEPS</span>
-            </label>
+            <label className="checkbox-label"><input type="checkbox" checked={ui.steps} onChange={e => setUi(u => ({ ...u, steps: e.target.checked }))} /> <span>SHOW STEPS</span></label>
           </div>
         </div>
 
-        {onMobile && !toolsOpen && solveResults.length === 0 && (
-          <button className="mobile-controls-toggle" onClick={() => setToolsOpen(true)} aria-label="Open drawing tools">⚙</button>
+        {ui.mobile && !ui.tools && !data.results.length && <button className="mobile-controls-toggle" onClick={() => setUi(u => ({ ...u, tools: true }))}>⚙</button>}
+
+        {data.results.length > 0 && (
+          <Floating title="Results" onClose={() => setData(d => ({ ...d, results: [] }))}>
+            {data.results.map((r, i) => (
+              <div key={i} className="card">
+                <div className="result-line"><InlineMath math={r.expr} /> = <strong><InlineMath math={r.result} /></strong></div>
+                {ui.steps && r.steps?.map((s, j) => <div key={j} className="step-detail">{s.explanation}</div>)}
+              </div>
+            ))}
+          </Floating>
         )}
 
-        {solveResults.length > 0 && (
-          <div className="results-area" style={{ left: resultsAreaPos.x, top: resultsAreaPos.y, width: resultsAreaPos.width, height: resultsAreaPos.height }}
-            onPointerMove={onBoxPointerMove}
-            onPointerUp={() => { resultsDragState.current = null; resultsResizeState.current = null; }}
-            onPointerLeave={() => { resultsDragState.current = null; resultsResizeState.current = null; }}>
-            <div className="results-area-header" onPointerDown={e => {
-              e.preventDefault(); e.stopPropagation();
-              resultsDragState.current = { startX: e.clientX, startY: e.clientY, origX: resultsAreaPos.x, origY: resultsAreaPos.y };
-            }}>
-              <span>Results</span>
-              <button className="results-close-btn" onClick={() => setSolveResults([])}>✕</button>
-            </div>
-            <div className="results-area-content">
-              {solveResults.map((r, i) => (
-                <div key={i} className="card">
-                  <div className="result-line">
-                    <InlineMath math={r.expr} /> = <strong><InlineMath math={r.result} /></strong>
-                  </div>
-                  {showSteps && r.steps?.map((s, j) => <div key={j} className="step-detail">{s.explanation}</div>)}
-                </div>
-              ))}
-            </div>
-            <div className="results-area-resize" onPointerDown={e => {
-              e.preventDefault(); e.stopPropagation();
-              resultsResizeState.current = { startX: e.clientX, startY: e.clientY, origW: resultsAreaPos.width, origH: resultsAreaPos.height };
-            }}></div>
-          </div>
-        )}
-
-        {errMsg && (
-          <div className="results-area error-results" style={{ left: resultsAreaPos.x, top: resultsAreaPos.y, width: resultsAreaPos.width, height: resultsAreaPos.height }}
-            onPointerMove={onBoxPointerMove}
-            onPointerUp={() => { resultsDragState.current = null; resultsResizeState.current = null; }}
-            onPointerLeave={() => { resultsDragState.current = null; resultsResizeState.current = null; }}>
-            <div className="results-area-header" onPointerDown={e => {
-              e.preventDefault(); e.stopPropagation();
-              resultsDragState.current = { startX: e.clientX, startY: e.clientY, origX: resultsAreaPos.x, origY: resultsAreaPos.y };
-            }}>
-              <span>Error</span>
-              <button className="results-close-btn" onClick={() => setErrMsg(null)}>✕</button>
-            </div>
-            <div className="results-area-content">ERR: {errMsg}</div>
-            <div className="results-area-resize" onPointerDown={e => {
-              e.preventDefault(); e.stopPropagation();
-              resultsResizeState.current = { startX: e.clientX, startY: e.clientY, origW: resultsAreaPos.width, origH: resultsAreaPos.height };
-            }}></div>
-          </div>
-        )}
+        {data.err && <Floating title="Error" isErr onClose={() => setData(d => ({ ...d, err: null }))}>ERR: {data.err}</Floating>}
       </div>
     </div>
   );

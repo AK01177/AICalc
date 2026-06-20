@@ -89,7 +89,7 @@ source venv/bin/activate  # On Windows use: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Environment Setup
-echo GEMINI_API_KEYS="your_key_1,your_key_2" > .env
+echo GEMINI_API_KEY="your_key_1,your_key_2" > .env
 echo SERVER_URL="localhost" >> .env
 echo PORT=8900 >> .env
 echo ENV="dev" >> .env
