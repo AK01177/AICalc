@@ -205,21 +205,19 @@ canvas {
   width: 12px;
   height: 12px;
   cursor: se-resize;
-  background: linear-gradient(
-    135deg,
-    transparent 30%,
-    var(--border-dark) 30%,
-    var(--border-dark) 40%,
-    transparent 40%,
-    transparent 55%,
-    var(--border-dark) 55%,
-    var(--border-dark) 65%,
-    transparent 65%,
-    transparent 80%,
-    var(--border-dark) 80%,
-    var(--border-dark) 90%,
-    transparent 90%
-  );
+  background: linear-gradient(135deg,
+      transparent 30%,
+      var(--border-dark) 30%,
+      var(--border-dark) 40%,
+      transparent 40%,
+      transparent 55%,
+      var(--border-dark) 55%,
+      var(--border-dark) 65%,
+      transparent 65%,
+      transparent 80%,
+      var(--border-dark) 80%,
+      var(--border-dark) 90%,
+      transparent 90%);
 }
 
 .card {
@@ -290,7 +288,6 @@ input[type="range"] {
   .page {
     padding: 2px;
     height: 100vh;
-    height: 100dvh;
   }
 
   header {
@@ -644,42 +641,84 @@ input[type="range"] {
   width: 12px;
   height: 12px;
   cursor: se-resize;
-  background: linear-gradient(
-    135deg,
-    transparent 30%,
-    var(--border-dark) 30%,
-    var(--border-dark) 40%,
-    transparent 40%,
-    transparent 55%,
-    var(--border-dark) 55%,
-    var(--border-dark) 65%,
-    transparent 65%,
-    transparent 80%,
-    var(--border-dark) 80%,
-    var(--border-dark) 90%,
-    transparent 90%
-  );
+  background: linear-gradient(135deg,
+      transparent 30%,
+      var(--border-dark) 30%,
+      var(--border-dark) 40%,
+      transparent 40%,
+      transparent 55%,
+      var(--border-dark) 55%,
+      var(--border-dark) 65%,
+      transparent 65%,
+      transparent 80%,
+      var(--border-dark) 80%,
+      var(--border-dark) 90%,
+      transparent 90%);
 }
 
 @media (max-width: 768px) {
   .text-box-handle {
-    height: 28px;
-    min-height: 28px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0 6px;
+    justify-content: flex-end;
   }
 
   .text-box-close {
-    width: 22px;
-    height: 22px;
-    font-size: 12px;
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
   }
 
   .text-box-content {
     font-size: 16px;
-    padding: 6px 8px;
+    padding: 8px 10px;
   }
 
   .text-box-resize {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
+  }
+
+  .text-box-mobile {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    min-height: 100px;
+    max-height: 40vh;
+    z-index: 170;
+    border: none;
+    border-top: 2px solid var(--border-dark);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
+    border-radius: 0;
+  }
+
+  .text-box-mobile .text-box-handle {
+    cursor: default;
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .text-box-mobile .text-box-content {
+    font-size: 16px;
+    padding: 10px 12px;
+    min-height: 60px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .text-box-mobile .text-box-resize {
+    display: none;
+  }
+
+  .results-close-btn {
+    min-width: 32px;
+    min-height: 32px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }

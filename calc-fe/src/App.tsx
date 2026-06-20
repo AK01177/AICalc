@@ -23,6 +23,7 @@ export default function App() {
     action: null as any, wrapper: null as HTMLDivElement | null, cv: null as HTMLCanvasElement | null,
     ctx: null as CanvasRenderingContext2D | null, pts: [] as number[][], snap: null as ImageData | null
   });
+  const boxTexts = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const t = localStorage.getItem("aicalc_total_tokens");
@@ -58,6 +59,7 @@ export default function App() {
   useEffect(() => {
     resetCanvas();
     const obs = new ResizeObserver(() => {
+      if (document.activeElement?.closest('.text-box')) return;
       const b = refs.current.cv?.toDataURL();
       resetCanvas();
       if (b) { const i = new Image(); i.onload = () => refs.current.ctx?.drawImage(i, 0, 0, refs.current.cv!.width / (window.devicePixelRatio || 1), refs.current.cv!.height / (window.devicePixelRatio || 1)); i.src = b; }
@@ -107,8 +109,14 @@ export default function App() {
     if (ui.mode !== "text" || !refs.current.wrapper) return;
     const { left, top } = refs.current.wrapper.getBoundingClientRect();
     const id = `tb_${Date.now()}`;
+    boxTexts.current[id] = "";
     setBoxes(b => [...b, { id, x: e.clientX - left, y: e.clientY - top, w: 180, h: 60, text: "" }]);
     setFocusId(id); setData(d => ({ ...d, dirty: true }));
+  };
+
+  const syncBoxText = (id: string) => {
+    const text = boxTexts.current[id] ?? "";
+    setBoxes(b => b.map(x => x.id === id ? { ...x, text } : x));
   };
 
   const onDrag = (e: PointerEvent) => {
@@ -123,13 +131,14 @@ export default function App() {
 
   const submit = async () => {
     const { cv, ctx } = refs.current;
-    if (!cv || !ctx || (!boxes.some(b => b.text.trim()) && !data.dirty)) return setData(d => ({ ...d, err: "Draw something first" }));
+    const liveBoxes = boxes.map(b => ({ ...b, text: boxTexts.current[b.id] ?? b.text }));
+    if (!cv || !ctx || (!liveBoxes.some(b => b.text.trim()) && !data.dirty)) return setData(d => ({ ...d, err: "Draw something first" }));
     setData(d => ({ ...d, solving: true, err: null }));
     const pre = boxes.length ? ctx.getImageData(0, 0, cv.width, cv.height) : null;
 
     if (pre) {
       ctx.save(); ctx.font = "14px 'Share Tech Mono', monospace"; ctx.fillStyle = "#000"; ctx.textBaseline = "top";
-      boxes.forEach(b => {
+      liveBoxes.forEach(b => {
         if (!b.text.trim()) return;
         const words = b.text.split(/\s+/);
         let line = "", y = b.y + 24;
@@ -179,16 +188,20 @@ export default function App() {
     if (pre) ctx.putImageData(pre, 0, 0);
   };
 
-  const Floating = ({ title, onClose, isErr, children }: any) => (
-    <div className={`results-area ${isErr ? "error-results" : ""}`} style={{ left: resPos.x, top: resPos.y, width: resPos.w, height: resPos.h }}
-      onPointerMove={onDrag} onPointerUp={() => refs.current.action = null} onPointerLeave={() => refs.current.action = null}>
-      <div className="results-area-header" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "mRes", sx: e.clientX, sy: e.clientY, ox: resPos.x, oy: resPos.y }; }}>
-        <span>{title}</span><button className="results-close-btn" onClick={onClose}>✕</button>
+  const Floating = ({ title, onClose, isErr, children }: any) => {
+    const isMobile = ui.mobile;
+    const posStyle = isMobile ? {} : { left: resPos.x, top: resPos.y, width: resPos.w, height: resPos.h };
+    return (
+      <div className={`results-area ${isErr ? "error-results" : ""}`} style={posStyle}
+        onPointerMove={!isMobile ? onDrag : undefined} onPointerUp={!isMobile ? () => refs.current.action = null : undefined} onPointerLeave={!isMobile ? () => refs.current.action = null : undefined}>
+        <div className="results-area-header" onPointerDown={!isMobile ? (e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "mRes", sx: e.clientX, sy: e.clientY, ox: resPos.x, oy: resPos.y }; }) : undefined}>
+          <span>{title}</span><button className="results-close-btn" onClick={onClose}>✕</button>
+        </div>
+        <div className="results-area-content">{children}</div>
+        {!isMobile && <div className="results-area-resize" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "sRes", sx: e.clientX, sy: e.clientY, ow: resPos.w, oh: resPos.h }; }} />}
       </div>
-      <div className="results-area-content">{children}</div>
-      <div className="results-area-resize" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "sRes", sx: e.clientX, sy: e.clientY, ow: resPos.w, oh: resPos.h }; }} />
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="page" onPointerMove={onDrag} onPointerUp={() => refs.current.action = null} onPointerLeave={() => refs.current.action = null}>
@@ -212,12 +225,17 @@ export default function App() {
           onPointerDown={e => onPt(e, "down")} onPointerMove={e => onPt(e, "move")} onPointerUp={e => onPt(e, "up")} onPointerLeave={e => onPt(e, "up")} onClick={addBox} />
 
         {boxes.map(b => (
-          <div key={b.id} className={`text-box ${focusId === b.id ? "focused" : ""}`} style={{ left: b.x, top: b.y, width: b.w, height: b.h }} onPointerDown={() => setFocusId(b.id)}>
-            <div className="text-box-handle" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "mBox", id: b.id, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y }; }}>
-              <button className="text-box-close" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setBoxes(x => x.filter(y => y.id !== b.id)); }}>✕</button>
+          <div key={b.id} className={`text-box ${focusId === b.id ? "focused" : ""}${ui.mobile ? " text-box-mobile" : ""}`}
+            style={ui.mobile ? {} : { left: b.x, top: b.y, width: b.w, height: b.h }} onPointerDown={() => setFocusId(b.id)}>
+            <div className="text-box-handle"
+              onPointerDown={!ui.mobile ? (e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "mBox", id: b.id, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y }; }) : undefined}>
+              <button className="text-box-close" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); delete boxTexts.current[b.id]; setBoxes(x => x.filter(y => y.id !== b.id)); }}>✕</button>
             </div>
-            <div className="text-box-content" contentEditable suppressContentEditableWarning onPointerDown={e => e.stopPropagation()} onInput={e => setBoxes(x => x.map(y => y.id === b.id ? { ...y, text: e.currentTarget.innerText } : y))} />
-            <div className="text-box-resize" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "sBox", id: b.id, sx: e.clientX, sy: e.clientY, ow: b.w, oh: b.h }; }} />
+            <div className="text-box-content" contentEditable suppressContentEditableWarning
+              onPointerDown={e => e.stopPropagation()}
+              onInput={e => { const el = e.target as HTMLDivElement; if (el) boxTexts.current[b.id] = el.innerText || ""; }}
+              onBlur={() => syncBoxText(b.id)} />
+            <div className="text-box-resize" onPointerDown={!ui.mobile ? (e => { e.preventDefault(); e.stopPropagation(); refs.current.action = { t: "sBox", id: b.id, sx: e.clientX, sy: e.clientY, ow: b.w, oh: b.h }; }) : undefined} />
           </div>
         ))}
 
