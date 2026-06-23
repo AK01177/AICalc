@@ -182,6 +182,9 @@ export default function App() {
       }
 
       const json = await r!.json() as GeminiResponse;
+      if (json.data?.[0]?.expr === "AI Error") {
+        throw new Error(json.data[0].result);
+      }
       const tk = json.usage?.total_tokens || 0;
       if (tk) localStorage.setItem("aicalc_total_tokens", String(data.tokens + tk));
       setData(d => ({ ...d, results: json.data || [], tokens: d.tokens + tk, solving: false }));
