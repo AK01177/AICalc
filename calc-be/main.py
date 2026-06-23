@@ -27,6 +27,12 @@ app = FastAPI(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    from fastapi import HTTPException
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"message": "Error", "data": [], "status": "error", "detail": exc.detail},
+        )
     logger.exception("Unhandled exception occurred")
     detail = str(exc) if ENV == "dev" else "An unexpected error occurred. Please try again."
     return JSONResponse(

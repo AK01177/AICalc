@@ -171,9 +171,12 @@ export default function App() {
           clearTimeout(timer);
           if (r.ok) break;
           const body = await r.text();
-          if (r.status === 429 || r.status === 400 || r.status >= 500) throw new Error(`HTTP ${r.status}: ${body.slice(0, 50)}`);
+          let msg = body.slice(0, 150);
+          try { msg = JSON.parse(body).detail || msg; } catch (err) { }
+          throw new Error(`HTTP ${r.status}: ${msg}`);
         } catch (e: any) {
-          if (i === 2 || e.message.includes("400") || e.message.includes("429")) throw e;
+          // Only retry on 5xx, 429 or network errors
+          if (i === 2 || (!e.message.includes("HTTP 5") && !e.message.includes("HTTP 429") && e.name !== "TypeError")) throw e;
           await new Promise(res => setTimeout(res, 1500 * (i + 1)));
         }
       }

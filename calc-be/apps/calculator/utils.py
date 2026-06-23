@@ -157,7 +157,7 @@ async def read_skribbl(
                         key_rotated = True
                         break
                 logger.exception("Gemini API call failed")
-                return {"results": [{"expr": "AI Error", "result": err_msg, "assign": False}], "usage": {}}
+                raise RuntimeError(f"Gemini API call failed: {err_msg}") from e
 
             text = _pluck_text(response)
             usage = getattr(response, "usage_metadata", None)
@@ -184,9 +184,9 @@ async def read_skribbl(
             last_raw_text = text
         else:
             logger.error(">>> Parse failed even with strict prompt. Raw response: %s", last_raw_text[:200])
-            return {"results": [{"expr": "Parse error", "result": "AI output invalid", "assign": False}], "usage": usage_dict}
+            raise RuntimeError("Parse error: AI output invalid")
 
         if key_rotated:
             continue
 
-    return {"results": [{"expr": "Error", "result": "All API keys exhausted", "assign": False}], "usage": {}}
+    raise RuntimeError("All API keys exhausted")
